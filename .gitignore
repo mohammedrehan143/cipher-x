@@ -1,0 +1,34 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Data (large files)
+data/raw/
+*.tif
+*.tiff
+*.jp2
+
+# Model weights
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.onnx
+
+# Outputs
+outputs/*
+!outputs/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
