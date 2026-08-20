@@ -1,0 +1,135 @@
+Metadata-Version: 2.4
+Name: cipher-x
+Version: 0.1.0
+Summary: CIPHER-X Space-Tech Satellite Land Change Detection & Classification System
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: scikit-image
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: opencv-python
+Requires-Dist: rasterio
+Requires-Dist: geopandas
+Requires-Dist: shapely
+Requires-Dist: pyproj
+Requires-Dist: streamlit
+Requires-Dist: pydeck
+Requires-Dist: folium
+Requires-Dist: streamlit-folium
+Requires-Dist: python-dotenv
+Requires-Dist: requests
+Dynamic: license-file
+
+# CIPHER-X — Human Activity Change Detection System
+
+> **SIH 2026 Space-Tech Hackathon Project**  
+> Satellite-based detection and classification of significant land-use changes using Sentinel-2 temporal imagery and machine learning.
+
+---
+
+## 🛰️ Complete End-to-End System Architecture
+
+```
+Sentinel-2 BEFORE + AFTER
+         ↓
+[Person 1] Preprocessing & Cloud Masking
+         ↓
+[Person 1] Change Vector Analysis (CVA) & Otsu Threshold
+         ↓
+[Person 2] Mask Vectorization & Polygon Cleaning
+         ↓
+[Person 2] 16-Attribute Spectral/Spatial Feature Extraction
+         ↓
+[Person 3] Balanced Random Forest Classifier & Confidence Scoring
+         ↓
+[Person 4] Interactive Streamlit GIS Command Center Dashboard
+```
+
+---
+
+## 👥 4-Person Engineering Team Roles
+
+| Role | Person | Focus Area | Key Deliverables |
+|---|---|---|---|
+| **Person 1** | Satellite Data Engineer | Preprocessing & CVA | `change_magnitude.tif`, `change_mask.tif`, `spectral_delta.tif` |
+| **Person 2** | GIS & Feature Engineer | Vectorization & Features | `change_results.geojson`, `change_features.csv` |
+| **Person 3** | ML Engineer | Classification & Inference | `predictions.csv`, `models/rf_classifier.joblib`, `models/rf_metadata.json` |
+| **Person 4** | Frontend & Integration | Interactive GIS Dashboard | `app/main.py`, `app/data_loader.py`, `PERSON4_PIPELINE.md` |
+
+---
+
+## 📁 Repository Structure
+
+```
+CIPHER-X/
+├── app/                           ← Person 4 (Streamlit interactive GIS dashboard)
+│   ├── data_loader.py             ← Cached ingestion & zero-crash fallback engine
+│   ├── map_view.py                ← Interactive Folium/Leaflet GIS map
+│   ├── aoi_inspector.py           ← Region telemetry & ML explainability
+│   └── main.py                    ← Dashboard entry point
+├── data/
+│   ├── sentinel/
+│   │   ├── before/                ← BEFORE Sentinel-2 L2A band files
+│   │   └── after/                 ← AFTER Sentinel-2 L2A band files
+│   ├── aoi/                       ← Optional AOI GeoJSON
+│   ├── labels/                    ← Prototype training labels
+│   └── processed/                 ← Intermediate aligned rasters
+├── docs/                          ← Comprehensive system documentation (01-10)
+├── models/                        ← Serialized Random Forest model & imputer
+├── notebooks/                     ← Exploration notebooks
+├── outputs/
+│   ├── maps/                      ← Person 1 rasters (change_magnitude.tif, change_mask.tif)
+│   ├── polygons/                  ← Person 2 vectors (change_results.geojson)
+│   └── predictions/               ← Person 2 features & Person 3 predictions.csv
+├── src/
+│   ├── preprocessing/             ← Person 1 (loader, align, masking)
+│   ├── cva/                       ← Person 1 (compute, threshold)
+│   ├── vectorization/             ← Person 2 (polygonize)
+│   ├── features/                  ← Person 2 (extractor, ndvi)
+│   └── models/                    ← Person 3 (classifier, labeller)
+├── run_pipeline.py                ← Person 1 CLI runner
+├── run_vectorize.py               ← Person 2 CLI runner
+├── run_classify.py                ← Person 3 CLI runner
+├── demo_test.py                   ← Synthetic end-to-end smoke test
+├── PERSON1_PIPELINE.md            ← Person 1 master document
+├── PERSON2_PIPELINE.md            ← Person 2 master document
+├── PERSON3_PIPELINE.md            ← Person 3 master document
+├── PERSON4_PIPELINE.md            ← Person 4 master document
+└── requirements.txt
+```
+
+---
+
+## 🚀 How to Run
+
+### 1. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Execute End-to-End Pipeline
+```bash
+# Step 1: Preprocessing & CVA (Person 1)
+python run_pipeline.py
+
+# Step 2: Vectorize & Extract Features (Person 2)
+python run_vectorize.py --min-area 1000
+
+# Step 3: Run Machine Learning Classifier (Person 3)
+python run_classify.py
+
+# Step 4: Launch Interactive GIS Dashboard (Person 4)
+streamlit run app/main.py
+```
+
+Dashboard will open in your browser at `http://localhost:8501`.
+
+---
+
+## 📜 License
+
+See LICENSE.

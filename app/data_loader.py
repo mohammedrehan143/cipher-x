@@ -196,3 +196,212 @@ def check_pipeline_status() -> dict:
         "Person 3 (ML)": MODEL_JOBLIB.exists() and PREDICTIONS_CSV.exists(),
         "Dashboard Data": not load_predictions().empty,
     }
+
+
+def clear_pipeline_cache() -> None:
+    """Clear all Streamlit data caches so fresh outputs are loaded immediately."""
+    st.cache_data.clear()
+
+
+@st.cache_data
+def get_rgb_composite(folder_path: str) -> tuple:
+    """
+    Extract and composite True Color RGB (Red B04, Green B03, Blue B02)
+    from a Sentinel-2 band folder.
+
+    Returns:
+        (rgb_image: np.ndarray (H, W, 3) uint8, bounds: dict or None)
+    """
+    import rasterio
+    from src.preprocessing.loader import find_band_file
+    from pyproj import Transformer
+
+    folder = Path(folder_path)
+    if not folder.exists():
+        return None, None
+
+    try:
+        b04_p = find_band_file(folder, "B04")
+        b03_p = find_band_file(folder, "B03")
+        b02_p = find_band_file(folder, "B02")
+    except Exception:
+        return None, None
+
+    with rasterio.open(b04_p) as s4, rasterio.open(b03_p) as s3, rasterio.open(b02_p) as s2:
+        r = s4.read(1).astype(np.float32)
+        g = s3.read(1).astype(np.float32)
+        b = s2.read(1).astype(np.float32)
+        crs = s4.crs
+        bounds = s4.bounds
+
+    rgb = np.stack([r, g, b], axis=-1)
+
+    # 2% - 98% percentile stretch for natural contrast
+    p2, p98 = np.percentile(rgb, (2, 98))
+    if p98 > p2:
+        rgb_norm = np.clip((rgb - p2) / (p98 - p2) * 255.0, 0, 255).astype(np.uint8)
+    else:
+        rgb_norm = np.clip(rgb / 10000.0 * 255.0, 0, 255).astype(np.uint8)
+
+    # Reproject bounding box to WGS84 lat/lon
+    bounds_wgs84 = None
+    if crs is not None:
+        try:
+            if getattr(crs, "is_geographic", False):
+                bounds_wgs84 = {
+                    "west": bounds.left,
+                    "south": bounds.bottom,
+                    "east": bounds.right,
+                    "north": bounds.top,
+                }
+            else:
+                tf = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+                west, south = tf.transform(bounds.left, bounds.bottom)
+                east, north = tf.transform(bounds.right, bounds.top)
+                bounds_wgs84 = {
+                    "west": min(west, east),
+                    "south": min(south, north),
+                    "east": max(west, east),
+                    "north": max(south, north),
+                }
+        except Exception:
+            bounds_wgs84 = None
+
+    return rgb_norm, bounds_wgs84
+
+
+def execute_full_pipeline(
+    before_dir: str = "data/sentinel/before",
+    after_dir: str = "data/sentinel/after",
+    min_area: float = 500.0,
+) -> tuple[bool, str]:
+    """
+    Run all 4 CIPHER-X pipeline stages in sequence.
+    Returns (success: bool, log_output: str).
+    """
+    import subprocess
+    import sys
+
+    logs = []
+    stages = [
+        ("Person 1 (Preprocessing + CVA)", [sys.executable, "run_pipeline.py", "--before", before_dir, "--after", after_dir]),
+        ("Person 2 (Vectorization + Features)", [sys.executable, "run_vectorize.py", "--min-area", str(min_area)]),
+        ("Person 3a (Auto-Labeller)", [sys.executable, "src/models/labeller.py"]),
+        ("Person 3b (Train Classifier)", [sys.executable, "src/models/classifier.py"]),
+        ("Person 3c (ML Inference)", [sys.executable, "run_classify.py"]),
+    ]
+
+    for name, cmd in stages:
+        logs.append(f"\n▶ Running {name}...")
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        logs.append(res.stdout)
+        if res.stderr:
+            logs.append(f"[STDERR]: {res.stderr}")
+        if res.returncode != 0:
+            logs.append(f"❌ {name} failed with exit code {res.returncode}")
+            return False, "\n".join(logs)
+        logs.append(f"✅ {name} completed successfully.")
+
+    clear_pipeline_cache()
+    return True, "\n".join(logs)
+
+
+def execute_auto_extraction(
+    aoi: str,
+    before_start: str,
+    before_end: str,
+    after_start: str,
+    after_end: str,
+    max_cloud: int = 20,
+    username: str = None,
+    password: str = None,
+    min_area: float = 500.0,
+) -> tuple[bool, str]:
+    """
+    Auto-download Sentinel-2 scenes from Copernicus CDSE and run full pipeline.
+    """
+    from src.preprocessing.downloader import download_sentinel2
+
+    logs = []
+    logs.append(f"🛰️ Initiating auto-download for AOI: {aoi}")
+    logs.append(f"  BEFORE range: {before_start} to {before_end}")
+    logs.append(f"  AFTER range:  {after_start} to {after_end}")
+
+    try:
+        download_sentinel2(
+            aoi=aoi,
+            before_date=(before_start.strip(), before_end.strip()),
+            after_date=(after_start.strip(), after_end.strip()),
+            before_dir="data/sentinel/before",
+            after_dir="data/sentinel/after",
+            max_cloud=max_cloud,
+            username=username,
+            password=password,
+        )
+        logs.append("✅ Sentinel-2 data extraction finished.")
+    except Exception as e:
+        logs.append(f"❌ Auto-download failed: {str(e)}")
+        return False, "\n".join(logs)
+
+    # Run full pipeline on extracted data
+    logs.append("\n⚡ Running complete ML change detection pipeline on extracted data...")
+    success, pipe_logs = execute_full_pipeline(min_area=min_area)
+    logs.append(pipe_logs)
+
+    clear_pipeline_cache()
+    return success, "\n".join(logs)
+
+
+def generate_sample_dataset(h: int = 300, w: int = 300) -> tuple[bool, str]:
+    """
+    Generate realistic synthetic Sentinel-2 dataset for immediate demonstration.
+    """
+    import rasterio
+    from rasterio.transform import from_bounds
+    from rasterio.crs import CRS
+
+    try:
+        crs = CRS.from_epsg(32643)  # UTM 43N
+        transform = from_bounds(770000.0, 800000.0, 773000.0, 803000.0, w, h)
+
+        def save_tif(path, data, dtype="float32"):
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            p = {
+                "driver": "GTiff",
+                "dtype": dtype,
+                "width": w,
+                "height": h,
+                "count": 1,
+                "crs": crs,
+                "transform": transform,
+                "compress": "deflate",
+            }
+            with rasterio.open(path, "w", **p) as dst:
+                dst.write(data.astype(dtype), 1)
+
+        # Before
+        np.random.seed(42)
+        base = np.random.rand(h, w).astype(np.float32) * 0.3 + 0.1
+        for bd, f in [("B02", 1.0), ("B03", 1.2), ("B04", 0.8), ("B08", 1.5)]:
+            save_tif(f"data/sentinel/before/T43PFP_20240115_{bd}_10m.tif", (base * f) * 10000, "uint16")
+        scl = np.full((h, w), 4, dtype=np.uint8)
+        scl[20:30, 20:30] = 9
+        save_tif("data/sentinel/before/T43PFP_20240115_SCL_20m.tif", scl, "uint8")
+
+        # After
+        np.random.seed(99)
+        base2 = np.random.rand(h, w).astype(np.float32) * 0.3 + 0.1
+        base2[60:120, 60:130] += 0.5   # Construction
+        base2[20:60, 180:250] -= 0.4   # Deforestation
+        base2[150:200, 50:200] += 0.3  # Excavation
+        for bd, f in [("B02", 1.0), ("B03", 1.2), ("B04", 0.8), ("B08", 1.5)]:
+            save_tif(f"data/sentinel/after/T43PFP_20240601_{bd}_10m.tif", (base2 * f) * 10000, "uint16")
+        scl2 = np.full((h, w), 4, dtype=np.uint8)
+        save_tif("data/sentinel/after/T43PFP_20240601_SCL_20m.tif", scl2, "uint8")
+
+        # Run pipeline
+        success, logs = execute_full_pipeline(min_area=500.0)
+        return success, f"Sample Sentinel-2 dataset generated.\n{logs}"
+    except Exception as e:
+        return False, f"Failed to generate sample dataset: {e}"
+

@@ -60,6 +60,7 @@ def save_raster(array: np.ndarray, profile: dict, output_path: str) -> None:
 
     out_profile = profile.copy()
     out_profile.update(
+        driver="GTiff",
         height=height,
         width=width,
         count=count,

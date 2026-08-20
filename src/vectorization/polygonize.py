@@ -12,17 +12,17 @@ from shapely.geometry import shape
 from pyproj import Transformer
 
 
-DEFAULT_MIN_AREA_M2 = 1000.0
-DEFAULT_OPEN_SIZE = 3
+DEFAULT_MIN_AREA_M2 = 500.0
+DEFAULT_OPEN_SIZE = 0
 
 
 def load_and_clean_mask(mask_path: str, open_size: int = DEFAULT_OPEN_SIZE) -> tuple:
     """
-    Load binary change mask and apply morphological opening to remove noise.
+    Load binary change mask and optionally apply morphological opening.
 
     Args:
         mask_path: path to change_mask.tif
-        open_size: structuring element size for morphological opening
+        open_size: structuring element size for morphological opening (0 = keep as is)
 
     Returns:
         mask: (H, W) uint8 array, 0=no change, 1=change
@@ -32,11 +32,14 @@ def load_and_clean_mask(mask_path: str, open_size: int = DEFAULT_OPEN_SIZE) -> t
         mask = src.read(1)
         profile = src.profile.copy()
 
-    struct = scipy.ndimage.generate_binary_structure(2, 1)
-    cleaned = scipy.ndimage.binary_opening(
-        mask.astype(bool), structure=struct, iterations=open_size
-    )
-    return cleaned.astype(np.uint8), profile
+    if open_size > 0:
+        struct = scipy.ndimage.generate_binary_structure(2, 1)
+        cleaned = scipy.ndimage.binary_opening(
+            mask.astype(bool), structure=struct, iterations=open_size
+        )
+        return cleaned.astype(np.uint8), profile
+
+    return mask.astype(np.uint8), profile
 
 
 def polygonize_mask(
@@ -93,8 +96,18 @@ def polygonize_mask(
     # Build GeoDataFrame in native CRS
     gdf = gpd.GeoDataFrame(geometry=geometries, crs=crs)
 
-    # Calculate area in native CRS (UTM → metres)
-    gdf["area_m2"] = gdf.geometry.area
+    # Calculate area in square metres (handles both projected UTM CRS and geographic EPSG:4326 degrees)
+    if crs is not None and getattr(crs, "is_geographic", False):
+        try:
+            utm_crs = gdf.estimate_utm_crs()
+            gdf["area_m2"] = gdf.to_crs(utm_crs).geometry.area
+        except Exception:
+            # Fallback approximation for WGS84 degrees -> metres
+            centroids = gdf.geometry.centroid
+            cos_lats = np.cos(np.radians(centroids.y))
+            gdf["area_m2"] = gdf.geometry.area * (111320.0 * cos_lats) * 110540.0
+    else:
+        gdf["area_m2"] = gdf.geometry.area
 
     # Filter by minimum area
     gdf = gdf[gdf["area_m2"] >= min_area_m2].copy()

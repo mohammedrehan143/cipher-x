@@ -59,6 +59,7 @@ def save_change_mask(
     """
     out_profile = profile.copy()
     out_profile.update(
+        driver="GTiff",
         height=mask.shape[0],
         width=mask.shape[1],
         count=1,

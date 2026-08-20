@@ -10,8 +10,8 @@ geopandas
 shapely
 pyproj
 streamlit
-python-dotenv
-requests
+pydeck
 folium
 streamlit-folium
-pydeck
+python-dotenv
+requests

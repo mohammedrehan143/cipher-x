@@ -36,8 +36,8 @@ def main():
     parser.add_argument(
         "--min-area",
         type=float,
-        default=1000.0,
-        help="Minimum polygon area in m² (default: 1000)",
+        default=200.0,
+        help="Minimum polygon area in m² (default: 200)",
     )
     args = parser.parse_args()
 
@@ -59,7 +59,7 @@ def main():
 
     # Step 2: Load and vectorize change mask
     print("[2/6] Loading and vectorizing change mask...")
-    mask, mask_profile = load_and_clean_mask(CHANGE_MASK, open_size=3)
+    mask, mask_profile = load_and_clean_mask(CHANGE_MASK, open_size=0)
     changed_pixels = int(mask.sum())
     print(f"       Changed pixels in mask: {changed_pixels}")
 
