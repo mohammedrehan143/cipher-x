@@ -7,7 +7,18 @@
 
 ## 1. Overview
 
+<<<<<<< HEAD
 CIPHER-X runs entirely locally during the hackathon. No cloud infrastructure is required for the MVP.
+=======
+CIPHER-X runs entirely locally during the hackathon. No cloud infrastructure is required for the MVP. This document covers:
+
+1. Local development setup & dependencies
+2. Running Person 1 pipeline (preprocessing + CVA)
+3. Running Person 2 pipeline (vectorization + features)
+4. Running Person 3 pipeline (labelling + Random Forest classification)
+5. Running Person 4 dashboard (Streamlit GIS interface)
+6. Hackathon demo workflow & troubleshooting
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
@@ -18,41 +29,40 @@ CIPHER-X runs entirely locally during the hackathon. No cloud infrastructure is 
 | Python | 3.10+ | 3.11 recommended |
 | pip | latest | `python -m pip install --upgrade pip` |
 | Git | any | For version control |
+<<<<<<< HEAD
 | RAM | 8 GB minimum | 16 GB recommended for large AOI |
+=======
+| GDAL / rasterio deps | auto | Included via pip packages |
+| RAM | 8 GB minimum | 16 GB recommended for large AOIs |
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 | Storage | 2 GB free | For Sentinel-2 band files |
-
-**Optional (for visual inspection):**
-- QGIS 3.x — open GeoTIFF and GeoJSON outputs
 
 ---
 
 ## 3. Installation
 
-### 3.1 Clone the Repository
+### 3.1 Clone the Repository & Setup Virtualenv
 
 ```bash
 git clone https://github.com/mohammedrehan143/cipher-x.git
 cd cipher-x
-```
 
-### 3.2 Create Virtual Environment
-
-```bash
 # Windows
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 
 # Linux / macOS
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-### 3.3 Install Dependencies
+### 3.2 Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
+<<<<<<< HEAD
 Current packages installed: `numpy, pandas, scikit-learn, scikit-image, scipy, matplotlib, opencv-python, rasterio, geopandas, shapely, pyproj, streamlit`
 
 > **Note (BUG-02 fix, 2026-08-20):** `pyproj` was missing from the original `requirements.txt`. It is now included. If you installed before this fix, run `pip install pyproj` manually.
@@ -122,10 +132,17 @@ T43PFP_20230101T054219_SCL_20m.jp2
 ## 5. Running the Pipelines
 
 ### 5.1 Person 1 Pipeline (Preprocessing + CVA)
+=======
+---
 
+## 4. End-to-End Pipeline Execution
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+
+### Step 1: Preprocessing & CVA (Person 1)
 ```bash
 python run_pipeline.py
 ```
+<<<<<<< HEAD
 
 With custom paths:
 ```bash
@@ -192,12 +209,37 @@ for f in ['outputs/maps/change_magnitude.tif',
         print(f'  min={float(np.nanmin(d)):.4f}, max={float(np.nanmax(d)):.4f}')
         print(f'  NaN pixels: {int(np.isnan(d).sum())} (should be > 0 if clouds exist)')
 "
-```
+=======
+**Outputs:**
+- `outputs/maps/change_magnitude.tif`
+- `outputs/maps/change_mask.tif`
+- `data/processed/spectral_delta.tif`
 
 ---
 
-## 7. Demo Day Checklist
+### Step 2: Vectorization & Feature Extraction (Person 2)
+```bash
+python run_vectorize.py --min-area 1000
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+```
+**Outputs:**
+- `outputs/polygons/change_results.geojson`
+- `outputs/predictions/change_features.csv`
 
+---
+
+### Step 3: ML Classification (Person 3)
+```bash
+python run_classify.py
+```
+**Outputs:**
+- `data/labels/prototype_labels.csv`
+- `models/rf_classifier.joblib`
+- `models/rf_imputer.joblib`
+- `models/rf_metadata.json`
+- `outputs/predictions/predictions.csv`
+
+<<<<<<< HEAD
 - [ ] Virtual environment activated
 - [ ] `pip install -r requirements.txt` completed
 - [ ] BEFORE and AFTER band files in correct folders
@@ -208,13 +250,36 @@ for f in ['outputs/maps/change_magnitude.tif',
 - [ ] `outputs/polygons/change_results.geojson` exists
 - [ ] `streamlit run app/main.py` opens dashboard
 - [ ] Rehearsed 5-minute demo walkthrough
+=======
+---
+
+### Step 4: Launch Interactive GIS Dashboard (Person 4)
+```bash
+streamlit run app/main.py
+```
+Opens locally at: `http://localhost:8501`
 
 ---
 
-## 8. Troubleshooting
+## 5. Demo Day Checklist
+
+**Before Demo:**
+- [ ] Virtual environment activated
+- [ ] Raw Sentinel-2 bands in `data/sentinel/before/` and `data/sentinel/after/`
+- [ ] Person 1 `run_pipeline.py` produces clean change maps
+- [ ] Person 2 `run_vectorize.py` generates valid polygons and 16 features
+- [ ] Person 3 `run_classify.py` trains RF model and generates predictions with confidence
+- [ ] Person 4 `app/main.py` opens and renders classified polygons on satellite map
+- [ ] Rehearsed 5-minute presentation flow
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+
+---
+
+## 6. Troubleshooting
 
 | Error | Cause | Fix |
 |---|---|---|
+<<<<<<< HEAD
 | `ModuleNotFoundError: pyproj` | Missing before BUG-02 fix | `pip install pyproj` or `pip install -r requirements.txt` |
 | `ModuleNotFoundError: rasterio` | Not installed | `pip install rasterio` or use conda |
 | `FileNotFoundError: B02` | Bands not in expected folder | Check file naming contains `B02` |
@@ -223,3 +288,12 @@ for f in ['outputs/maps/change_magnitude.tif',
 | `ValueError: No valid pixels` | All pixels are NaN | Entire scene is cloud-covered |
 | Change mask all zeros | Threshold too high | Check Otsu value printed to console |
 | Dashboard 404 / import error | `app/main.py` not yet built | Person 2 must implement this |
+=======
+| `ModuleNotFoundError: rasterio / geopandas` | Missing dependency | `pip install -r requirements.txt` |
+| `FileNotFoundError: outputs/maps/...` | Person 1 pipeline not run | Run `python run_pipeline.py` first |
+| `FileNotFoundError: outputs/predictions/change_features.csv` | Person 2 pipeline not run | Run `python run_vectorize.py` first |
+| `FileNotFoundError: outputs/predictions/predictions.csv` | Person 3 pipeline not run | Run `python run_classify.py` first |
+| `All pixels masked` | High cloud coverage in scene | Choose clearer acquisition dates |
+| `No polygons found` | Area threshold too high | Lower threshold: `python run_vectorize.py --min-area 100` |
+| `Class distribution imbalanced` | Natural scene variation | Random Forest uses `class_weight='balanced'` |
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213

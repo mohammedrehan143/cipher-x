@@ -7,14 +7,21 @@
 
 ## 1. Overview
 
+<<<<<<< HEAD
 CIPHER-X is a local-first, offline-capable data processing pipeline. It does not expose a public API or process user-uploaded data in production. Security concerns are limited but still important for a hackathon team environment.
+=======
+CIPHER-X is an offline-capable, local-first data processing pipeline. It processes open-access satellite data and produces spatial vector and tabular outputs without exposing unauthenticated remote endpoints.
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
 ## 2. Secrets & Credentials Management
 
 ### 2.1 Environment Variables
+Any API keys or Copernicus credentials MUST be stored in `.env` and NEVER committed to version control.
+Use `.env.example` as the committed template with placeholder values.
 
+<<<<<<< HEAD
 Any API keys (e.g., Copernicus SciHub login, Sentinel Hub API) MUST be stored in a `.env` file and NEVER committed to Git.
 
 ```bash
@@ -45,11 +52,31 @@ git rm --cached .env
 git commit -m "fix: remove .env from tracking"
 # Then regenerate all credentials in the .env file
 ```
+=======
+### 2.2 .gitignore Verification
+Verify that `.gitignore` contains:
+```
+.env
+*.env
+data/sentinel/
+outputs/
+```
 
 ---
 
-## 3. Data Security
+## 3. Machine Learning & Model Security
 
+### 3.1 Model Deserialization Safety
+- Use `joblib` for model loading from trusted project paths only (`models/rf_classifier.joblib`).
+- Never load untrusted external `.pkl` or `.joblib` files from third-party URLs.
+- Save model metadata (`rf_metadata.json`) in plain text JSON to allow transparent auditing of feature names, class mappings, and hyperparameters without executing pickled bytecode.
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+
+---
+
+## 4. Dashboard & Web Security
+
+<<<<<<< HEAD
 ### 3.1 Satellite Data
 - Sentinel-2 data is publicly available — no confidentiality requirement for the data itself.
 - Large raster files (`.tif`, `.jp2`) are excluded from Git via `.gitignore` to prevent accidental large-file commits.
@@ -58,11 +85,17 @@ git commit -m "fix: remove .env from tracking"
 ### 3.2 AOI Sensitivity
 - If the AOI represents a sensitive location (e.g., a defence installation), ensure `data/aoi/` is also excluded from Git.
 - Add `data/aoi/` to `.gitignore` if needed for your specific use case.
+=======
+- Run Streamlit locally: `streamlit run app/main.py --server.address localhost`
+- Do not expose raw filesystem system paths or sensitive host environment information in user-facing dashboard components.
+- Sanitize and validate file uploads if arbitrary AOIs are uploaded through the UI.
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
-## 4. Streamlit Dashboard Security
+## 5. File Path & Command Execution Safety
 
+<<<<<<< HEAD
 For the MVP, the dashboard runs locally (`localhost`). If deployed publicly:
 
 - Do **not** expose the Streamlit app on a public port without authentication.
@@ -106,3 +139,8 @@ ROOT = Path(__file__).resolve().parents[2]  # navigate to project root
 - [ ] Streamlit app does not display raw filesystem paths to end users
 - [ ] `data/sentinel/` and `data/processed/` are in `.gitignore`
 - [ ] `requirements.txt` uses only known, trusted packages
+=======
+- All paths constructed using `pathlib.Path` rooted at the project directory.
+- Avoid dynamic string concatenation in shell commands.
+- Never use `os.system()` with raw user inputs.
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213

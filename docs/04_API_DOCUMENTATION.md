@@ -1,12 +1,17 @@
 ﻿# 04 — API DOCUMENTATION
 
 > **Project:** CIPHER-X  
+<<<<<<< HEAD
 > **Scope:** Internal Python API — all public functions across Person 1 and Person 2 modules  
 > **Last Updated:** 2026-08-20 (updated: BUG-01 fix reflected in compute_magnitude; BUG-04 fix reflected in align_images)
+=======
+> **Scope:** Internal Python API — all public functions across Person 1, Person 2, and Person 3 modules  
+> **Last Updated:** 2026-08-20
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
-## 1. Module: `src.preprocessing.loader`
+## 1. Module: `src.preprocessing.loader` (Person 1)
 
 ### `find_band_file(folder, band_name)`
 
@@ -53,7 +58,7 @@ def load_bands(folder: Path) -> tuple[np.ndarray, np.ndarray, dict]
 
 ---
 
-## 2. Module: `src.preprocessing.align`
+## 2. Module: `src.preprocessing.align` (Person 1)
 
 ### `align_to_reference(src_array, src_profile, ref_profile, resampling)`
 
@@ -100,7 +105,7 @@ def align_images(
 
 ---
 
-## 3. Module: `src.preprocessing.masking`
+## 3. Module: `src.preprocessing.masking` (Person 1)
 
 ### `scl_to_mask(scl_array, mask_classes)`
 
@@ -143,7 +148,7 @@ def apply_mask(bands_array: np.ndarray, valid_mask: np.ndarray) -> np.ndarray
 
 ---
 
-## 4. Module: `src.cva.compute`
+## 4. Module: `src.cva.compute` (Person 1)
 
 ### `compute_delta(before_bands, after_bands, valid_mask)`
 
@@ -197,7 +202,7 @@ Always writes with `compress='deflate'` and appropriate `nodata` (NaN for float,
 
 ---
 
-## 5. Module: `src.cva.threshold`
+## 5. Module: `src.cva.threshold` (Person 1)
 
 ### `otsu_threshold(magnitude_array)`
 
@@ -281,8 +286,17 @@ def polygonize_mask(
 
 **Steps:** `rasterio.features.shapes()` → filter by area → repair geometry → add lat/lon centroid → reproject to EPSG:4326
 
+<<<<<<< HEAD
 **Returns:** `GeoDataFrame` with columns: `id, geometry, area_m2, latitude, longitude` (CRS: EPSG:4326)  
 **Returns empty GDF** (not error) if no polygons pass the area filter.
+=======
+**Returns:** `gpd.GeoDataFrame` with columns:
+- `id` - int, sequential identifier
+- `geometry` - Polygon geometry (CRS from mask)
+- `area_m2` - float, polygon area in square metres
+- `latitude` - float, centroid latitude (EPSG:4326)
+- `longitude` - float, centroid longitude (EPSG:4326)
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
@@ -296,9 +310,18 @@ Compute NDVI from B04 (Red) and B08 (NIR) in a folder.
 def compute_ndvi(band_folder: Path, profile_ref: dict) -> np.ndarray
 ```
 
+<<<<<<< HEAD
 **Formula:** `NDVI = (B08 - B04) / (B08 + B04)` — NaN where denominator is 0  
 **Returns:** `np.ndarray` shape `(H, W)`, float32, range `[-1, 1]`, NaN where invalid  
 **Fallback:** Returns all-NaN array with a warning if B04 or B08 not found.
+=======
+| Parameter | Type | Description |
+|---|---|---|
+| `band_folder` | `Path` | Folder containing B04 and B08 band files |
+| `profile_ref` | `dict` | Reference rasterio profile to align NDVI to (change mask grid) |
+
+**Returns:** `np.ndarray` float32 `(H, W)` - NDVI values in range [-1, 1]. NaN where B08+B04==0 or bands not found.
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
@@ -311,6 +334,7 @@ Extract 16 features per polygon from raster layers.
 ```python
 def extract_features(
     gdf: gpd.GeoDataFrame,
+<<<<<<< HEAD
     magnitude_path: str, magnitude_profile: dict,
     spectral_delta_path: str, spectral_delta_profile: dict,
     ndvi_before: np.ndarray,
@@ -338,6 +362,18 @@ def extract_features(
 | `bbox_width_m` | Bounding box width (metres) |
 | `bbox_height_m` | Bounding box height (metres) |
 | `compactness` | 4π·area/perimeter² (1=perfect circle, 0=very elongated) |
+=======
+    magnitude_path: str,
+    magnitude_profile: dict,
+    spectral_delta_path: str,
+    spectral_delta_profile: dict,
+    ndvi_before: np.ndarray,
+    ndvi_after: np.ndarray,
+) -> pd.DataFrame
+```
+
+**Returns:** `pd.DataFrame` with all 16 feature columns.
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
@@ -366,4 +402,115 @@ python run_vectorize.py [--min-area FLOAT]
 |---|---|---|
 | `--min-area` | `1000.0` | Minimum polygon area in m² |
 
+<<<<<<< HEAD
 Exit codes: `0`=success, `1`=Person 1 outputs missing or no polygons found
+=======
+---
+
+## 11. Module: `src.models.labeller` (Person 3)
+
+### `auto_label(df)`
+
+Apply domain heuristic rules to generate provisional training labels from polygon features.
+
+```python
+def auto_label(df: pd.DataFrame) -> pd.DataFrame
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `df` | `pd.DataFrame` | Feature table (16 columns) from Person 2 |
+
+**Returns:** `pd.DataFrame` with added columns:
+- `label` (`int` 0-4)
+- `label_name` (`str` e.g., "Vegetation Clearing", "New Construction")
+- `label_source` (`str` default: `'auto_rule'`)
+
+---
+
+## 12. Module: `src.models.classifier` (Person 3)
+
+### `load_training_data(labels_path)`
+
+Load labelled CSV, impute missing values with median strategy, and extract feature matrix $X$ and labels $y$.
+
+```python
+def load_training_data(
+    labels_path: Path
+) -> tuple[np.ndarray, np.ndarray, SimpleImputer, list[str]]
+```
+
+**Returns:** `(X, y, imputer, feature_names)`
+
+---
+
+### `train_model(X, y, feature_names)`
+
+Train a balanced `RandomForestClassifier` with train/validation evaluation.
+
+```python
+def train_model(
+    X: np.ndarray,
+    y: np.ndarray,
+    feature_names: list[str]
+) -> tuple[RandomForestClassifier, dict]
+```
+
+**Returns:** `(clf, metrics_dict)` containing accuracy, classification report, and confusion matrix.
+
+---
+
+### `save_artifacts(clf, imputer, metadata, output_dir)`
+
+Save trained model, imputer, and metadata JSON to disk.
+
+```python
+def save_artifacts(
+    clf: RandomForestClassifier,
+    imputer: SimpleImputer,
+    metadata: dict,
+    output_dir: Path
+) -> None
+```
+
+---
+
+### `predict_features(clf, imputer, df)`
+
+Run batch inference on feature table to predict change class and confidence score.
+
+```python
+def predict_features(
+    clf: RandomForestClassifier,
+    imputer: SimpleImputer,
+    df: pd.DataFrame
+) -> pd.DataFrame
+```
+
+**Returns:** `pd.DataFrame` containing `id`, `predicted_class`, `predicted_label`, `confidence`, plus pass-through attributes.
+
+---
+
+## 13. Top-Level Runner: `run_classify.py` (Person 3)
+
+### CLI Usage
+
+```bash
+python run_classify.py [--features PATH] [--labels PATH] [--output PATH]
+```
+
+| Argument | Default | Description |
+|---|---|---|
+| `--features` | `outputs/predictions/change_features.csv` | Input features from Person 2 |
+| `--labels` | `data/labels/prototype_labels.csv` | Labelled dataset for training |
+| `--output` | `outputs/predictions/predictions.csv` | Output predictions for Person 4 |
+
+### Exit Codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Features input missing (run `run_vectorize.py` first) |
+| 2 | Model training or inference error |
+| 3 | Unexpected error |
+>>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
