@@ -1,0 +1,105 @@
+{
+  "timestamp": "2026-08-20T09:29:35.415892+00:00",
+  "model_type": "RandomForestClassifier",
+  "feature_names": [
+    "area_m2",
+    "cva_mean",
+    "cva_max",
+    "ndvi_before",
+    "ndvi_after",
+    "delta_ndvi",
+    "delta_b02",
+    "delta_b03",
+    "delta_b04",
+    "delta_b08",
+    "bbox_width_m",
+    "bbox_height_m",
+    "compactness"
+  ],
+  "class_names": {
+    "0": "New Construction",
+    "1": "Road Change / Expansion",
+    "2": "Vegetation Clearing",
+    "3": "Excavation / Mining",
+    "4": "Other Human Change"
+  },
+  "n_estimators": 50,
+  "n_features": 13,
+  "classes": [
+    1,
+    2,
+    4
+  ],
+  "metrics": {
+    "accuracy": 1.0,
+    "classification_report": {
+      "Road Change / Expansion": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 2.0
+      },
+      "Vegetation Clearing": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 2.0
+      },
+      "Other Human Change": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 4.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 8.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 8.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        2,
+        0
+      ],
+      [
+        0,
+        0,
+        4
+      ]
+    ],
+    "n_train": 8,
+    "n_val": 8,
+    "n_classes": 3,
+    "feature_importances": {
+      "area_m2": 0.0695207406270779,
+      "cva_mean": 0.047387376003032805,
+      "cva_max": 0.12258196511687382,
+      "ndvi_before": 0.03744091043010612,
+      "ndvi_after": 0.19739842727142912,
+      "delta_ndvi": 0.13619658466818388,
+      "delta_b02": 0.10985406694005925,
+      "delta_b03": 0.053768555041064044,
+      "delta_b04": 0.033967271118973914,
+      "delta_b08": 0.05042265527764991,
+      "bbox_width_m": 0.034706333661284075,
+      "bbox_height_m": 0.07774140309680842,
+      "compactness": 0.02901371074745688
+    }
+  },
+  "labels_source": "data\\labels\\prototype_labels.csv"
+}
