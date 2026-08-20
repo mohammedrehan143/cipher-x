@@ -1,12 +1,12 @@
 ﻿# 04 — API DOCUMENTATION
 
 > **Project:** CIPHER-X  
-> **Scope:** Internal Python API — all public functions across Person 1 and Person 2 modules  
+> **Scope:** Internal Python API — all public functions across Person 1, Person 2, and Person 3 modules  
 > **Last Updated:** 2026-08-20
 
 ---
 
-## 1. Module: `src.preprocessing.loader`
+## 1. Module: `src.preprocessing.loader` (Person 1)
 
 ### `find_band_file(folder, band_name)`
 
@@ -54,7 +54,7 @@ def load_bands(folder: Path) -> tuple[np.ndarray, np.ndarray, dict]
 
 ---
 
-## 2. Module: `src.preprocessing.align`
+## 2. Module: `src.preprocessing.align` (Person 1)
 
 ### `align_to_reference(src_array, src_profile, ref_profile, resampling)`
 
@@ -95,7 +95,7 @@ def align_images(
 
 ---
 
-## 3. Module: `src.preprocessing.masking`
+## 3. Module: `src.preprocessing.masking` (Person 1)
 
 ### `scl_to_mask(scl_array, mask_classes)`
 
@@ -136,7 +136,7 @@ def apply_mask(bands_array: np.ndarray, valid_mask: np.ndarray) -> np.ndarray
 
 ---
 
-## 4. Module: `src.cva.compute`
+## 4. Module: `src.cva.compute` (Person 1)
 
 ### `compute_delta(before_bands, after_bands, valid_mask)`
 
@@ -183,7 +183,7 @@ Automatically handles 2D `(H, W)` and 3D `(bands, H, W)` arrays.
 
 ---
 
-## 5. Module: `src.cva.threshold`
+## 5. Module: `src.cva.threshold` (Person 1)
 
 ### `otsu_threshold(magnitude_array)`
 
@@ -309,11 +309,6 @@ def polygonize_mask(
 - `latitude` - float, centroid latitude (EPSG:4326)
 - `longitude` - float, centroid longitude (EPSG:4326)
 
-**Notes:**
-- Uses `rasterio.features.shapes()` for raster-to-vector conversion
-- Repairs invalid geometries with `.buffer(0)`
-- Filters polygons smaller than `min_area_m2`
-
 ---
 
 ## 8. Module: `src.features.ndvi` (Person 2)
@@ -336,41 +331,27 @@ def compute_ndvi(
 
 **Returns:** `np.ndarray` float32 `(H, W)` - NDVI values in range [-1, 1]. NaN where B08+B04==0 or bands not found.
 
-**Formula:** `NDVI = (B08 - B04) / (B08 + B04)`
-
-**Fallback:** If B04 or B08 not found, logs a warning and returns array of NaN. Pipeline continues gracefully.
-
 ---
 
 ## 9. Module: `src.features.extractor` (Person 2)
 
-### `extract_features(gdf, magnitude_path, delta_path, ndvi_before, ndvi_after, mask_transform)`
+### `extract_features(gdf, magnitude_path, magnitude_profile, spectral_delta_path, spectral_delta_profile, ndvi_before, ndvi_after)`
 
 Enrich a GeoDataFrame of change polygons with raster-sampled and computed features.
 
 ```python
 def extract_features(
     gdf: gpd.GeoDataFrame,
-    magnitude_path: Path,
-    delta_path: Path,
+    magnitude_path: str,
+    magnitude_profile: dict,
+    spectral_delta_path: str,
+    spectral_delta_profile: dict,
     ndvi_before: np.ndarray,
     ndvi_after: np.ndarray,
-    mask_transform: rasterio.Affine,
-) -> gpd.GeoDataFrame
+) -> pd.DataFrame
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `gdf` | `gpd.GeoDataFrame` | Change polygons from `polygonize_mask()` |
-| `magnitude_path` | `Path` | Path to `outputs/maps/change_magnitude.tif` |
-| `delta_path` | `Path` | Path to `data/processed/spectral_delta.tif` |
-| `ndvi_before` | `np.ndarray` | NDVI before array `(H, W)` from `compute_ndvi()` |
-| `ndvi_after` | `np.ndarray` | NDVI after array `(H, W)` from `compute_ndvi()` |
-| `mask_transform` | `Affine` | Affine transform from the change mask raster |
-
-**Returns:** `gpd.GeoDataFrame` with all 16 feature columns added (see `03_DATABASE_DESIGN.md` section 4.3 for full column list).
-
-**Sampling method:** `rasterio.features.geometry_mask()` per polygon, then `np.nanmean()` / `np.nanmax()`.
+**Returns:** `pd.DataFrame` with all 16 feature columns.
 
 ---
 
@@ -386,11 +367,111 @@ python run_vectorize.py [--min-area FLOAT]
 |---|---|---|
 | `--min-area` | `1000.0` | Minimum polygon area in m2 to keep |
 
+---
+
+## 11. Module: `src.models.labeller` (Person 3)
+
+### `auto_label(df)`
+
+Apply domain heuristic rules to generate provisional training labels from polygon features.
+
+```python
+def auto_label(df: pd.DataFrame) -> pd.DataFrame
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `df` | `pd.DataFrame` | Feature table (16 columns) from Person 2 |
+
+**Returns:** `pd.DataFrame` with added columns:
+- `label` (`int` 0-4)
+- `label_name` (`str` e.g., "Vegetation Clearing", "New Construction")
+- `label_source` (`str` default: `'auto_rule'`)
+
+---
+
+## 12. Module: `src.models.classifier` (Person 3)
+
+### `load_training_data(labels_path)`
+
+Load labelled CSV, impute missing values with median strategy, and extract feature matrix $X$ and labels $y$.
+
+```python
+def load_training_data(
+    labels_path: Path
+) -> tuple[np.ndarray, np.ndarray, SimpleImputer, list[str]]
+```
+
+**Returns:** `(X, y, imputer, feature_names)`
+
+---
+
+### `train_model(X, y, feature_names)`
+
+Train a balanced `RandomForestClassifier` with train/validation evaluation.
+
+```python
+def train_model(
+    X: np.ndarray,
+    y: np.ndarray,
+    feature_names: list[str]
+) -> tuple[RandomForestClassifier, dict]
+```
+
+**Returns:** `(clf, metrics_dict)` containing accuracy, classification report, and confusion matrix.
+
+---
+
+### `save_artifacts(clf, imputer, metadata, output_dir)`
+
+Save trained model, imputer, and metadata JSON to disk.
+
+```python
+def save_artifacts(
+    clf: RandomForestClassifier,
+    imputer: SimpleImputer,
+    metadata: dict,
+    output_dir: Path
+) -> None
+```
+
+---
+
+### `predict_features(clf, imputer, df)`
+
+Run batch inference on feature table to predict change class and confidence score.
+
+```python
+def predict_features(
+    clf: RandomForestClassifier,
+    imputer: SimpleImputer,
+    df: pd.DataFrame
+) -> pd.DataFrame
+```
+
+**Returns:** `pd.DataFrame` containing `id`, `predicted_class`, `predicted_label`, `confidence`, plus pass-through attributes.
+
+---
+
+## 13. Top-Level Runner: `run_classify.py` (Person 3)
+
+### CLI Usage
+
+```bash
+python run_classify.py [--features PATH] [--labels PATH] [--output PATH]
+```
+
+| Argument | Default | Description |
+|---|---|---|
+| `--features` | `outputs/predictions/change_features.csv` | Input features from Person 2 |
+| `--labels` | `data/labels/prototype_labels.csv` | Labelled dataset for training |
+| `--output` | `outputs/predictions/predictions.csv` | Output predictions for Person 4 |
+
 ### Exit Codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Person 1 output files missing (run `run_pipeline.py` first) |
-| 2 | No change polygons found after filtering |
+| 1 | Features input missing (run `run_vectorize.py` first) |
+| 2 | Model training or inference error |
 | 3 | Unexpected error |

@@ -8,19 +8,19 @@
 ## 1. High-Level System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         CIPHER-X SYSTEM                         │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐  │
-│  │  DATA LAYER  │───▶│  PROCESSING CORE │───▶│ OUTPUT LAYER │  │
-│  │              │    │                  │    │              │  │
-│  │ Sentinel-2   │    │  Preprocessing   │    │ GeoTIFF maps │  │
-│  │ BEFORE/AFTER │    │  CVA             │    │ GeoJSON poly │  │
-│  │ SCL bands    │    │  Vectorization   │    │ Predictions  │  │
-│  │ AOI GeoJSON  │    │  Features        │    │ Dashboard    │  │
-│  └──────────────┘    │  ML Model        │    └──────────────┘  │
-│                      └──────────────────┘                       │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                             CIPHER-X SYSTEM                             │
+│                                                                         │
+│  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────────┐  │
+│  │  DATA LAYER  │───▶│  PROCESSING CORE │───▶│     OUTPUT LAYER     │  │
+│  │              │    │                  │    │                      │  │
+│  │ Sentinel-2   │    │ Person 1: CVA    │    │ GeoTIFF change maps  │  │
+│  │ BEFORE/AFTER │    │ Person 2: Vector │    │ GeoJSON polygons     │  │
+│  │ SCL bands    │    │ Person 3: ML     │    │ Predictions CSV      │  │
+│  │ AOI GeoJSON  │    │ Person 4: App    │    │ Streamlit Dashboard  │  │
+│  └──────────────┘    └──────────────────┘    └──────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -31,49 +31,72 @@
 data/sentinel/before/          data/sentinel/after/
       │                               │
       ▼                               ▼
-  loader.py ────────────────────── loader.py
+  loader.py ────────────────────── loader.py      (Person 1)
   (B02,B03,B04,B08,SCL)           (B02,B03,B04,B08,SCL)
       │                               │
       └──────────┬────────────────────┘
                  ▼
-            align.py
+            align.py                              (Person 1)
        (reproject to same CRS/grid)
                  │
                  ▼
-           masking.py
+            masking.py                            (Person 1)
        (SCL cloud/shadow mask)
                  │
                  ▼
-           compute.py  ──────────────▶  data/processed/spectral_delta.tif
+            compute.py  ──────────────▶  data/processed/spectral_delta.tif
        (CVA delta + magnitude)
                  │
                  ▼
      outputs/maps/change_magnitude.tif
                  │
                  ▼
-          threshold.py
+          threshold.py                            (Person 1)
        (Otsu + morphological)
                  │
                  ▼
      outputs/maps/change_mask.tif
                  │                             ← Person 2 picks up here
                  ▼
-          vectorize.py  (Person 2)
+          polygonize.py                           (Person 2)
+       (cleanup + raster-to-vector)
                  │
                  ▼
-     outputs/polygons/changes.geojson
+     outputs/polygons/change_results.geojson
                  │
                  ▼
-         features.py  (Person 2)
+         extractor.py + ndvi.py                   (Person 2)
+       (sample 16 features per polygon)
                  │
                  ▼
-          ml_model.py  (Person 2)
+     outputs/predictions/change_features.csv
+                 │                             ← Person 3 picks up here
+                 ▼
+          labeller.py                             (Person 3)
+       (rule-based provisional labelling)
                  │
                  ▼
-     outputs/predictions/classified.geojson
+     data/labels/prototype_labels.csv
                  │
                  ▼
-          app/  Streamlit Dashboard  (Person 2)
+          classifier.py                           (Person 3)
+       (Random Forest training & model evaluation)
+                 │
+                 ▼
+     models/rf_classifier.joblib
+     models/rf_imputer.joblib
+     models/rf_metadata.json
+                 │
+                 ▼
+         run_classify.py                          (Person 3)
+       (inference: class + confidence)
+                 │
+                 ▼
+     outputs/predictions/predictions.csv
+                 │                             ← Person 4 picks up here
+                 ▼
+          app/main.py                             (Person 4)
+       (Streamlit Dashboard: GIS map, filters, metrics)
 ```
 
 ---
@@ -83,7 +106,7 @@ data/sentinel/before/          data/sentinel/after/
 ```
 cipher-x/
 │
-├── docs/                          ← Documentation (this folder)
+├── docs/                          ← Architecture, API, Data, Responsibilities
 │   ├── 01_PROJECT_REQUIREMENTS.md
 │   ├── 02_PROJECT_ARCHITECTURE.md
 │   ├── 03_DATABASE_DESIGN.md
@@ -97,40 +120,55 @@ cipher-x/
 │
 ├── src/                           ← Core processing modules
 │   ├── __init__.py
-│   ├── preprocessing/             ← PERSON 1
+│   ├── preprocessing/             ← PERSON 1 (loader, align, masking)
 │   │   ├── __init__.py
-│   │   ├── loader.py              ← Read S2 bands
-│   │   ├── align.py               ← CRS/grid alignment
-│   │   └── masking.py             ← SCL cloud masking
-│   ├── cva/                       ← PERSON 1
+│   │   ├── loader.py
+│   │   ├── align.py
+│   │   └── masking.py
+│   ├── cva/                       ← PERSON 1 (compute, threshold)
 │   │   ├── __init__.py
-│   │   ├── compute.py             ← CVA delta + magnitude
-│   │   └── threshold.py           ← Otsu + morphological cleanup
-│   ├── vectorization/             ← PERSON 2
-│   ├── features/                  ← PERSON 2
-│   └── models/                    ← PERSON 2
+│   │   ├── compute.py
+│   │   └── threshold.py
+│   ├── vectorization/             ← PERSON 2 (polygonize)
+│   │   ├── __init__.py
+│   │   └── polygonize.py
+│   ├── features/                  ← PERSON 2 (extractor, ndvi)
+│   │   ├── __init__.py
+│   │   ├── extractor.py
+│   │   └── ndvi.py
+│   └── models/                    ← PERSON 3 (classifier, labeller)
+│       ├── __init__.py
+│       ├── labeller.py
+│       └── classifier.py
 │
-├── app/                           ← PERSON 2 — Streamlit dashboard
+├── app/                           ← PERSON 4 — Streamlit interactive GIS dashboard
+│   ├── __init__.py
+│   └── main.py
 │
 ├── data/
 │   ├── sentinel/
-│   │   ├── before/                ← BEFORE S2 bands go here
-│   │   └── after/                 ← AFTER S2 bands go here
+│   │   ├── before/                ← BEFORE S2 bands
+│   │   └── after/                 ← AFTER S2 bands
 │   ├── aoi/                       ← AOI GeoJSON (optional)
-│   └── processed/                 ← Intermediate rasters
+│   ├── labels/                    ← PERSON 3 (prototype_labels.csv)
+│   └── processed/                 ← Intermediate rasters (spectral_delta.tif)
 │
-├── models/                        ← Trained ML model weights
+├── models/                        ← PERSON 3 (rf_classifier.joblib, imputer, metadata)
 ├── notebooks/                     ← Exploration notebooks
 ├── outputs/
-│   ├── maps/                      ← change_magnitude.tif, change_mask.tif
-│   ├── polygons/                  ← changes.geojson
-│   └── predictions/               ← classified.geojson
+│   ├── maps/                      ← PERSON 1 (change_magnitude.tif, change_mask.tif)
+│   ├── polygons/                  ← PERSON 2 (change_results.geojson)
+│   └── predictions/               ← PERSON 2 (change_features.csv), PERSON 3 (predictions.csv)
 │
-├── run_pipeline.py                ← End-to-end runner (Person 1 scope)
+├── run_pipeline.py                ← PERSON 1 end-to-end runner
+├── run_vectorize.py               ← PERSON 2 end-to-end runner
+├── run_classify.py                ← PERSON 3 end-to-end runner
+├── PERSON1_PIPELINE.md            ← PERSON 1 master plan
+├── PERSON2_PIPELINE.md            ← PERSON 2 master plan
+├── PERSON3_PIPELINE.md            ← PERSON 3 master plan
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
-├── PERSON1_PIPELINE.md
 └── README.md
 ```
 
@@ -138,37 +176,49 @@ cipher-x/
 
 ## 4. Technology Stack
 
-| Layer | Technology | Version |
+| Layer | Technology | Role |
 |---|---|---|
-| Language | Python | 3.10+ |
-| Raster I/O | rasterio | latest |
-| Numerical | numpy | latest |
-| Spatial | geopandas, shapely | latest |
-| Image processing | scikit-image, scipy | latest |
-| ML | scikit-learn | latest |
-| Visualisation | matplotlib | latest |
-| Dashboard | Streamlit | latest |
-| Data format (raster) | GeoTIFF | — |
-| Data format (vector) | GeoJSON | — |
-| Satellite data source | Copernicus / ESA | Sentinel-2 L2A |
+| Language | Python 3.10+ | Core language |
+| Raster Processing | rasterio, GDAL | Band reading, warping, mask generation |
+| Numerical & Array | numpy, scipy | CVA calculations, morphological filtering |
+| Spatial Vectors | geopandas, shapely | Polygonization, CRS projection, geometry metrics |
+| Machine Learning | scikit-learn, joblib | Random Forest classifier, imputation, serialization |
+| Frontend / UI | streamlit, folium / pydeck | Interactive GIS map, filtering, metrics dashboard |
+| Formats | GeoTIFF, GeoJSON, CSV | QGIS-compatible data exchange |
 
 ---
 
-## 5. Person Responsibilities Summary
+## 5. Person Responsibilities & Handoff Summary
 
-| Person | Modules | Input | Output |
-|---|---|---|---|
-| Person 1 | preprocessing, cva | Raw S2 bands | change_magnitude.tif, change_mask.tif, spectral_delta.tif |
-| Person 2 | vectorization, features, models, app | change_mask.tif, spectral_delta.tif | classified.geojson, Streamlit dashboard |
-
----
-
-## 6. Interface Contract (Person 1 → Person 2)
-
-Person 1 guarantees these files will exist after `python run_pipeline.py`:
-
-| File | Format | Bands | CRS | Dtype |
+| Person | Focus Area | Inputs | Key Deliverables | Downstream Hand-off |
 |---|---|---|---|---|
-| `outputs/maps/change_mask.tif` | GeoTIFF | 1 (uint8, 0/1) | Input S2 CRS | uint8 |
-| `outputs/maps/change_magnitude.tif` | GeoTIFF | 1 (float32) | Input S2 CRS | float32 |
-| `data/processed/spectral_delta.tif` | GeoTIFF | 4 [ΔB02,ΔB03,ΔB04,ΔB08] | Input S2 CRS | float32 |
+| **Person 1** | Satellite Preprocessing & CVA | Raw Sentinel-2 L2A bands | `change_mask.tif`, `change_magnitude.tif`, `spectral_delta.tif` | Person 2 |
+| **Person 2** | GIS Vectorization & Features | Person 1 rasters + raw bands | `change_results.geojson`, `change_features.csv` (16 cols) | Person 3 & Person 4 |
+| **Person 3** | ML Classification | `change_features.csv` | `predictions.csv`, `models/rf_classifier.joblib` | Person 4 |
+| **Person 4** | Interactive Dashboard | `change_results.geojson` + `predictions.csv` | Streamlit GIS app (`app/main.py`) | End-users / Judges |
+
+---
+
+## 6. Cross-Person Interface Contracts
+
+```
+[Person 1]
+  outputs/maps/change_mask.tif
+  outputs/maps/change_magnitude.tif
+  data/processed/spectral_delta.tif
+        │
+        ▼
+[Person 2]
+  outputs/polygons/change_results.geojson
+  outputs/predictions/change_features.csv
+        │
+        ▼
+[Person 3]
+  outputs/predictions/predictions.csv (id, predicted_class, predicted_label, confidence, ...)
+  models/rf_classifier.joblib
+        │
+        ▼
+[Person 4]
+  Streamlit app joins `change_results.geojson` and `predictions.csv` on `id`
+  Displays interactive map, statistics, and classification breakdown.
+```

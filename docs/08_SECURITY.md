@@ -7,86 +7,46 @@
 
 ## 1. Overview
 
-CIPHER-X is a local-first, offline-capable data processing pipeline. It does not expose a public API or process user-uploaded data in production. Security concerns are limited but still important.
+CIPHER-X is an offline-capable, local-first data processing pipeline. It processes open-access satellite data and produces spatial vector and tabular outputs without exposing unauthenticated remote endpoints.
 
 ---
 
 ## 2. Secrets & Credentials Management
 
 ### 2.1 Environment Variables
+Any API keys or Copernicus credentials MUST be stored in `.env` and NEVER committed to version control.
+Use `.env.example` as the committed template with placeholder values.
 
-Any API keys (e.g., Copernicus SciHub login, Sentinel Hub API) MUST be stored in a `.env` file and NEVER committed to Git.
-
-```bash
-# .env (never commit this file)
-COPERNICUS_USERNAME=your_username
-COPERNICUS_PASSWORD=your_password
-SENTINEL_HUB_CLIENT_ID=your_client_id
-SENTINEL_HUB_CLIENT_SECRET=your_client_secret
-```
-
-Use `.env.example` as a template with placeholder values — this IS committed to Git.
-
-### 2.2 .gitignore Rules
-
-Ensure `.gitignore` includes:
+### 2.2 .gitignore Verification
+Verify that `.gitignore` contains:
 ```
 .env
 *.env
+data/sentinel/
+outputs/
 ```
 
-**Rule:** If `.env` is accidentally committed, rotate all credentials immediately.
+---
+
+## 3. Machine Learning & Model Security
+
+### 3.1 Model Deserialization Safety
+- Use `joblib` for model loading from trusted project paths only (`models/rf_classifier.joblib`).
+- Never load untrusted external `.pkl` or `.joblib` files from third-party URLs.
+- Save model metadata (`rf_metadata.json`) in plain text JSON to allow transparent auditing of feature names, class mappings, and hyperparameters without executing pickled bytecode.
 
 ---
 
-## 3. Data Security
+## 4. Dashboard & Web Security
 
-### 3.1 Satellite Data
-- Sentinel-2 data is publicly available — no confidentiality requirement.
-- Large raster files (`.tif`, `.jp2`) are excluded from Git via `.gitignore` to avoid accidental large-file commits and potential data leaks of pre-processed outputs.
-
-### 3.2 AOI Sensitivity
-- If the AOI represents a sensitive location (e.g., defence area), ensure `data/aoi/` is also excluded from Git.
-- Add `data/aoi/` to `.gitignore` if needed.
+- Run Streamlit locally: `streamlit run app/main.py --server.address localhost`
+- Do not expose raw filesystem system paths or sensitive host environment information in user-facing dashboard components.
+- Sanitize and validate file uploads if arbitrary AOIs are uploaded through the UI.
 
 ---
 
-## 4. Streamlit Dashboard Security
+## 5. File Path & Command Execution Safety
 
-For the MVP, the dashboard runs locally (`localhost`). If deployed:
-
-- Do **not** expose the Streamlit app on a public port without authentication.
-- Use `streamlit run app/main.py --server.address localhost` for local-only binding.
-- Do not log raw satellite data paths or credentials in Streamlit UI.
-
----
-
-## 5. Dependency Security
-
-- Pin exact dependency versions in `requirements.txt` for the demo to avoid supply-chain issues.
-- Use only well-known PyPI packages (numpy, rasterio, scikit-image, etc.).
-- Do not install packages from untrusted sources during the hackathon.
-
----
-
-## 6. File Path Safety
-
-All file paths in the code use `pathlib.Path` and are constructed from a project root variable:
-
-```python
-from pathlib import Path
-ROOT = Path(__file__).resolve().parents[2]  # project root
-```
-
-**Never** use `os.system()` or `subprocess` with user-provided strings.  
-**Never** pass unsanitized file paths to shell commands.
-
----
-
-## 7. Checklist Before Demo
-
-- [ ] `.env` is NOT in `git status` or `git log`
-- [ ] No passwords hardcoded in any `.py` file
-- [ ] `requirements.txt` uses known, trustworthy packages
-- [ ] Streamlit app does not display raw filesystem paths to end users
-- [ ] `data/sentinel/` is in `.gitignore`
+- All paths constructed using `pathlib.Path` rooted at the project directory.
+- Avoid dynamic string concatenation in shell commands.
+- Never use `os.system()` with raw user inputs.
