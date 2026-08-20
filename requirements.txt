@@ -1,6 +1,8 @@
 numpy
 pandas
 scikit-learn
+scikit-image
+scipy
 matplotlib
 opencv-python
 rasterio

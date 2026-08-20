@@ -20,12 +20,12 @@
 
 | Module | File | Status |
 |---|---|---|
-| Band Loader | `src/preprocessing/loader.py` | ⏳ Pending |
-| Image Alignment | `src/preprocessing/align.py` | ⏳ Pending |
-| Cloud Masking | `src/preprocessing/masking.py` | ⏳ Pending |
-| CVA Computation | `src/cva/compute.py` | ⏳ Pending |
-| Thresholding | `src/cva/threshold.py` | ⏳ Pending |
-| Pipeline Runner | `run_pipeline.py` | ⏳ Pending |
+| Band Loader | `src/preprocessing/loader.py` | ✅ Done | find_band_file, load_bands |
+| Image Alignment | `src/preprocessing/align.py` | ✅ Done | align_to_reference, align_images |
+| Cloud Masking | `src/preprocessing/masking.py` | ✅ Done | scl_to_mask, combine_masks, apply_mask |
+| CVA Computation | `src/cva/compute.py` | ✅ Done | compute_delta, compute_magnitude, save_raster |
+| Thresholding | `src/cva/threshold.py` | ✅ Done | otsu_threshold, apply_threshold, clean_mask, save_change_mask |
+| Pipeline Runner | `run_pipeline.py` | ✅ Done | CLI with --before/--after args |
 
 ### Deliverables to Person 2
 

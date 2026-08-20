@@ -131,7 +131,7 @@ Streamlit Dashboard (interactive map)
 
 | Person | Contribution |
 |---|---|
-| Person 1 | Sentinel-2 data pipeline, preprocessing, CVA, change detection |
+| Person 1 | Sentinel-2 data pipeline, preprocessing, CVA, change detection | ✅ All modules implemented |
 | Person 2 | Vectorization, feature extraction, ML classification, Streamlit dashboard |
 
 ---
