@@ -1,33 +1,55 @@
-# Cipher-X
+# CIPHER-X
 
-Satellite-based change detection system (formerly Human Change Detection).
+Satellite-based change detection system for the SIH 2026 Space-Tech MVP.
+
+## MVP Pipeline
+
+Sentinel-2 BEFORE/AFTER
+? Preprocessing
+? Change Vector Analysis (CVA)
+? Change Mask
+? Polygons / Features
+? Random Forest
+? GeoJSON / GIS
+? Streamlit Dashboard
 
 ## Project Structure
 
-```
-cipher-x/
-├── data/                # Datasets (raw & processed)
-│   └── README.md
-├── src/                 # Source code
-│   ├── preprocessing/   # Data loading & cleaning
-│   ├── cva/             # Change Vector Analysis
-│   ├── liss4/           # LISS-IV imagery processing
-│   ├── model/           # Model definitions & training
-│   └── utils/           # Shared utilities
-├── notebooks/           # Jupyter notebooks for exploration
-├── outputs/             # Generated results & visualizations
-├── models/              # Saved model weights
-├── app/                 # Application entry points
-├── requirements.txt
-└── .gitignore
-```
+CIPHER-X/
++-- app/
++-- data/
+�   +-- sentinel/
+�   �   +-- before/
+�   �   +-- after/
+�   +-- aoi/
+�   +-- processed/
++-- models/
++-- notebooks/
++-- outputs/
+�   +-- maps/
+�   +-- polygons/
+�   +-- predictions/
++-- src/
+�   +-- preprocessing/
+�   +-- cva/
+�   +-- vectorization/
+�   +-- features/
+�   +-- models/
++-- .gitignore
++-- LICENSE
++-- README.md
++-- requirements.txt
 
 ## Setup
 
-```bash
 pip install -r requirements.txt
-```
+
+## Scope
+
+The current MVP uses Sentinel-2 imagery and a classical computer-vision / machine-learning pipeline.
+
+LISS-4 processing and Siamese CNN are postponed to a future/optional stage.
 
 ## License
 
-See [LICENSE](LICENSE).
+See LICENSE.

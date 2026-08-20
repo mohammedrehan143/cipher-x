@@ -32,3 +32,8 @@ outputs/*
 # OS
 .DS_Store
 Thumbs.db
+
+# CIPHER-X Sentinel-2 data
+data/sentinel/
+data/processed/
+

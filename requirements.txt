@@ -5,7 +5,4 @@ matplotlib
 opencv-python
 rasterio
 geopandas
-tensorflow
-torch
-flask
 streamlit
