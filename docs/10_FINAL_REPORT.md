@@ -153,9 +153,14 @@ ML Classification: polygon -> change class (Person 3)
 
 | Person | Contribution |
 |---|---|
+<<<<<<< HEAD
 | Person 1 | Sentinel-2 data pipeline, preprocessing (loader, align, masking), CVA (compute, threshold), binary change mask |
 | Person 2 | Vectorization (polygonize), NDVI computation, feature extraction (16 features per polygon), GeoJSON + CSV output, ML handoff |
 | Person 3 | ML classification model, change category prediction, classified.geojson |
+=======
+| Person 1 | Sentinel-2 data pipeline, preprocessing, CVA, change detection | ✅ All modules implemented |
+| Person 2 | Vectorization, feature extraction, ML classification, Streamlit dashboard |
+>>>>>>> dc0c2e197200a48fe04f4aa26094afe39dca638a
 
 ---
 
