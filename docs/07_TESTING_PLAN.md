@@ -24,7 +24,7 @@ No formal pytest suite is required for MVP, but verification scripts are mandato
 python -c "import rasterio, numpy, skimage, scipy; print('All dependencies OK')"
 ```
 **Pass:** prints `All dependencies OK`  
-**Fail:** `ModuleNotFoundError` → run `pip install -r requirements.txt`
+**Fail:** `ModuleNotFoundError` -> run `pip install -r requirements.txt`
 
 ---
 
@@ -138,28 +138,140 @@ mask_data = rasterio.open('outputs/maps/change_mask.tif').read(1)
 unique = set(mask_data.flatten().tolist())
 assert unique.issubset({0,1}), f'Mask contains unexpected values: {unique}'
 assert 1 in unique, 'Mask is all zeros — no changes detected!'
-print('ALL TESTS PASSED')
+print('ALL P1 TESTS PASSED')
 "
 ```
 
 ---
 
-## 3. Person 2 — Vectorization, Features, ML (Placeholder)
+## 3. Person 2 — Vectorization & Feature Extraction Tests
 
-> To be filled in by Person 2.
+### Test P2-01: Environment Check
+```bash
+python -c "import rasterio, geopandas, shapely, skimage, scipy; print('Person 2 dependencies OK')"
+```
+**Pass:** prints `Person 2 dependencies OK`  
+**Fail:** `ModuleNotFoundError` -> run `pip install -r requirements.txt`
 
-### Test P2-01: Vectorization
-- Input: `change_mask.tif`
-- Expected: `outputs/polygons/changes.geojson` exists, valid GeoJSON, ≥ 1 feature
+---
 
-### Test P2-02: Feature Extraction
-- Expected: each polygon has numeric feature attributes (NDVI_delta, etc.)
+### Test P2-02: Person 1 Output Check (Prerequisite)
+```bash
+python -c "
+import os
+required = [
+    'outputs/maps/change_mask.tif',
+    'outputs/maps/change_magnitude.tif',
+    'data/processed/spectral_delta.tif',
+]
+for f in required:
+    assert os.path.exists(f), f'MISSING (run Person 1 pipeline first): {f}'
+    print(f'OK: {f}')
+print('Person 1 outputs confirmed. Person 2 can proceed.')
+"
+```
 
-### Test P2-03: ML Classification
-- Expected: each polygon has a `class_label` attribute with valid class string
+---
 
-### Test P2-04: Dashboard
-- Expected: `streamlit run app/main.py` opens without errors
+### Test P2-03: Vectorization Unit Test
+```python
+from src.vectorization.polygonize import load_and_clean_mask, polygonize_mask
+from pathlib import Path
+
+mask, profile = load_and_clean_mask(Path("outputs/maps/change_mask.tif"))
+assert mask.ndim == 2,                "Mask should be 2D"
+assert set(mask.flatten().tolist()).issubset({0,1}), "Mask should only contain 0 and 1"
+
+gdf = polygonize_mask(mask, profile, min_area_m2=1000.0)
+assert len(gdf) >= 1,                "At least one polygon expected"
+assert "area_m2" in gdf.columns,     "area_m2 column missing"
+assert "latitude" in gdf.columns,    "latitude column missing"
+assert "longitude" in gdf.columns,   "longitude column missing"
+assert gdf["area_m2"].min() >= 1000, "Polygons smaller than min_area_m2 were not filtered"
+assert gdf["latitude"].between(-90, 90).all(),   "Latitude out of WGS84 range"
+assert gdf["longitude"].between(-180, 180).all(), "Longitude out of WGS84 range"
+print(f"P2-03 PASS — {len(gdf)} polygons generated")
+```
+
+---
+
+### Test P2-04: NDVI Unit Test
+```python
+from src.features.ndvi import compute_ndvi
+from pathlib import Path
+import rasterio, numpy as np
+
+with rasterio.open("outputs/maps/change_mask.tif") as src:
+    profile_ref = src.profile
+
+ndvi = compute_ndvi(Path("data/sentinel/before"), profile_ref)
+assert ndvi.ndim == 2,                  "NDVI should be 2D"
+assert ndvi.dtype == np.float32,        "NDVI should be float32"
+assert np.nanmin(ndvi) >= -1.0,         "NDVI min below -1"
+assert np.nanmax(ndvi) <= 1.0,          "NDVI max above 1"
+print(f"P2-04 PASS — NDVI range: [{float(np.nanmin(ndvi)):.3f}, {float(np.nanmax(ndvi)):.3f}]")
+```
+
+---
+
+### Test P2-05: Feature Extraction Column Check
+```python
+from src.features.extractor import extract_features
+# (run after vectorization and NDVI steps)
+
+required_cols = [
+    "id", "area_m2", "latitude", "longitude",
+    "cva_mean", "cva_max",
+    "ndvi_before", "ndvi_after", "delta_ndvi",
+    "delta_b02", "delta_b03", "delta_b04", "delta_b08",
+    "bbox_width_m", "bbox_height_m", "compactness"
+]
+for col in required_cols:
+    assert col in gdf.columns, f"Missing column: {col}"
+assert (gdf["area_m2"] > 0).all(), "All area_m2 should be positive"
+assert (gdf["compactness"].between(0, 1)).all(), "Compactness should be 0-1"
+print(f"P2-05 PASS — All {len(required_cols)} columns present")
+```
+
+---
+
+### Test P2-06: End-to-End Person 2 Pipeline Run
+```bash
+python run_vectorize.py
+```
+
+**Expected console output (abbreviated):**
+```
+[1/6] Checking Person 1 outputs exist...
+[2/6] Loading and vectorizing change mask...
+[3/6] Computing NDVI (before)...
+[4/6] Computing NDVI (after)...
+[5/6] Extracting polygon features...
+[6/6] Saving outputs...
+Done.
+```
+
+**Verify outputs:**
+```bash
+python -c "
+import geopandas as gpd, pandas as pd, os
+
+# Check GeoJSON
+assert os.path.exists('outputs/polygons/change_results.geojson'), 'GeoJSON missing'
+gdf = gpd.read_file('outputs/polygons/change_results.geojson')
+print(f'GeoJSON: {len(gdf)} polygons, {len(gdf.columns)} columns')
+print(f'Columns: {list(gdf.columns)}')
+assert gdf.crs.to_epsg() == 4326, 'GeoJSON CRS must be EPSG:4326'
+
+# Check CSV
+assert os.path.exists('outputs/predictions/change_features.csv'), 'CSV missing'
+df = pd.read_csv('outputs/predictions/change_features.csv')
+print(f'CSV: {len(df)} rows, {len(df.columns)} columns')
+assert len(df) == len(gdf), 'CSV and GeoJSON row count must match'
+
+print('ALL P2 TESTS PASSED')
+"
+```
 
 ---
 
@@ -169,6 +281,9 @@ print('ALL TESTS PASSED')
 - [ ] Verify bright areas correspond to areas of visible change
 - [ ] Open `outputs/maps/change_mask.tif` in QGIS (binary 0/1)
 - [ ] Change regions look spatially coherent (not random noise)
+- [ ] Open `outputs/polygons/change_results.geojson` in QGIS
+- [ ] Polygons overlay correctly on the raster
+- [ ] Attribute table shows numeric values for all feature columns
 - [ ] Overlay on Google Maps / OpenStreetMap basemap for sanity check
 
 ---
@@ -177,7 +292,9 @@ print('ALL TESTS PASSED')
 
 | Scenario | Acceptable? | Mitigation |
 |---|---|---|
-| SCL band missing | Yes — skip masking, log warning | Document clearly |
-| All pixels masked by cloud | No — pipeline should raise error | User selects better date |
-| Change mask is all-zero | Investigate threshold — may need manual override | Log Otsu threshold value |
+| SCL band missing | Yes - skip masking, log warning | Document clearly |
+| All pixels masked by cloud | No - pipeline should raise error | User selects better date |
+| Change mask is all-zero | Investigate threshold - may need manual override | Log Otsu threshold value |
 | CRS mismatch between S2 scenes | Handled automatically by align.py | Verify same tile |
+| B04/B08 raw bands not found | Yes - NDVI = NaN, pipeline continues | Log warning; all other features still work |
+| Zero polygons after area filter | No - lower MIN_AREA_M2 or check mask | Use `--min-area 100` to test |
