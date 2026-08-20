@@ -80,9 +80,15 @@ def align_images(
     aligned_bands = align_to_reference(
         after_bands, after_profile, before_profile, resampling="bilinear"
     )
+
+    # BUG-04 FIX: after_profile has count=4 (reflectance bands).
+    # Build a 1-band SCL profile so reproject metadata is accurate.
+    scl_profile = after_profile.copy()
+    scl_profile.update(count=1, dtype="uint8")
+
     aligned_scl = align_to_reference(
         after_scl.reshape(1, *after_scl.shape),
-        after_profile,
+        scl_profile,
         before_profile,
         resampling="nearest",
     ).squeeze()

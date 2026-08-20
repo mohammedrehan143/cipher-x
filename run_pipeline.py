@@ -93,6 +93,13 @@ def main():
     binary_change = apply_threshold(magnitude, threshold)
     clean_change = clean_mask(binary_change, open_size=3, close_size=3)
 
+    # BUG-06 FIX: Assert shapes match before masked indexing.
+    # Catches any off-by-one from SCL resampling early with a clear message.
+    assert clean_change.shape == combined_valid.shape, (
+        f"Shape mismatch: change mask {clean_change.shape} vs "
+        f"validity mask {combined_valid.shape}. "
+        "Check SCL resampling in loader.py."
+    )
     # Set masked pixels to 0
     clean_change[~combined_valid] = 0
 

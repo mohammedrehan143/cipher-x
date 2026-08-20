@@ -2,7 +2,7 @@
 
 > **Project:** CIPHER-X  
 > **Scope:** Internal Python API — all public functions across Person 1 and Person 2 modules  
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-20 (updated: BUG-01 fix reflected in compute_magnitude; BUG-04 fix reflected in align_images)
 
 ---
 
@@ -21,16 +21,15 @@ def find_band_file(folder: Path, band_name: str) -> Path
 | `folder` | `Path` | Directory to search (e.g., `data/sentinel/before/`) |
 | `band_name` | `str` | Band identifier: `"B02"`, `"B03"`, `"B04"`, `"B08"`, `"SCL"` |
 
-**Returns:** `Path` - absolute path to the matched file  
-**Raises:** `FileNotFoundError` if no matching file is found
-
-**Glob pattern used:** `*{band_name}*.jp2` then `*{band_name}*.tif`
+**Returns:** `Path` — absolute path to the matched file  
+**Raises:** `FileNotFoundError` if no matching file is found  
+**Glob patterns tried:** `*{band_name}*.jp2` → `*{band_name}*.tif` → `*{band_name}*.tiff`
 
 ---
 
 ### `load_bands(folder)`
 
-Load Sentinel-2 B02, B03, B04, B08 and SCL from a folder. Scales reflectance bands to [0, 1].
+Load Sentinel-2 B02, B03, B04, B08 and SCL from a folder. Scales reflectance DN to [0, 1].
 
 ```python
 def load_bands(folder: Path) -> tuple[np.ndarray, np.ndarray, dict]
@@ -38,19 +37,19 @@ def load_bands(folder: Path) -> tuple[np.ndarray, np.ndarray, dict]
 
 | Parameter | Type | Description |
 |---|---|---|
-| `folder` | `Path` | Band files directory |
+| `folder` | `Path` | Directory containing band files |
 
 **Returns:**
-- `bands` - `np.ndarray` shape `(4, H, W)`, dtype `float32`, range `[0.0, 1.0]`  
+- `bands` — `np.ndarray` shape `(4, H, W)`, dtype `float32`, range `[0.0, 1.0]`  
   Band order: `[B02, B03, B04, B08]`
-- `scl` - `np.ndarray` shape `(H, W)`, dtype `uint8`, SCL class values `[0-11]`  
-  Resampled to match band resolution (nearest neighbour)
-- `profile` - `dict` - rasterio profile for saving outputs (CRS, transform, width, height)
+- `scl` — `np.ndarray` shape `(H, W)`, dtype `uint8`, SCL class values `[0–11]`  
+  Resampled to match 10m band resolution via nearest-neighbour
+- `profile` — `dict` — rasterio profile for saving outputs (CRS, transform, width, height, count=4, dtype=float32)
 
 **Notes:**
-- DN values divided by `10000` for reflectance
-- SCL is NOT divided - integer class values preserved
-- If SCL not found: returns `None` for `scl`, logs a warning
+- DN values divided by `10000.0` for reflectance
+- SCL is NOT divided — integer class values 0–11 preserved
+- If SCL not found: returns synthetic all-valid SCL (class 4), logs a warning
 
 ---
 
@@ -71,12 +70,12 @@ def align_to_reference(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `src_array` | `np.ndarray` | Source array `(bands, H, W)` or `(H, W)` |
-| `src_profile` | `dict` | Rasterio profile of `src_array` |
+| `src_array` | `np.ndarray` | Source array `(bands, H, W)` |
+| `src_profile` | `dict` | Rasterio profile matching `src_array` (CRS, transform, count) |
 | `ref_profile` | `dict` | Rasterio profile of the reference (target grid) |
-| `resampling` | `str` | `'bilinear'` for bands, `'nearest'` for SCL |
+| `resampling` | `str` | `'bilinear'` for continuous bands, `'nearest'` for SCL integer classes |
 
-**Returns:** `np.ndarray` - reprojected array matching `ref_profile` shape
+**Returns:** `np.ndarray` — reprojected array with same spatial extent and shape as `ref_profile`
 
 ---
 
@@ -91,7 +90,13 @@ def align_images(
 ) -> tuple[np.ndarray, np.ndarray]
 ```
 
-**Returns:** `(aligned_after_bands, aligned_after_scl)` - same grid as BEFORE
+**Returns:** `(aligned_after_bands, aligned_after_scl)` — same grid as BEFORE
+
+**Short-circuit:** If CRS, transform, and shape already match, returns AFTER arrays unchanged (no reprojection).
+
+> **BUG-04 fix (2026-08-20):** SCL is now aligned using a dedicated 1-band `scl_profile` (`count=1, dtype=uint8`)
+> instead of reusing `after_profile` which has `count=4`. This ensures profile metadata accurately
+> reflects the single SCL band being reprojected.
 
 ---
 
@@ -108,19 +113,21 @@ def scl_to_mask(
 ) -> np.ndarray
 ```
 
-**Returns:** `np.ndarray` bool, shape `(H, W)` - `True` = valid pixel, `False` = masked
+**Default masked classes:** 0 (no data), 1 (saturated), 3 (cloud shadow), 8 (cloud medium), 9 (cloud high), 10 (thin cirrus)
+
+**Returns:** `np.ndarray` bool, shape `(H, W)` — `True` = valid pixel, `False` = masked
 
 ---
 
 ### `combine_masks(before_mask, after_mask)`
 
-Combine BEFORE and AFTER masks: pixel valid only if valid in BOTH images.
+Combine BEFORE and AFTER masks — pixel valid only if valid in BOTH images.
 
 ```python
 def combine_masks(before_mask: np.ndarray, after_mask: np.ndarray) -> np.ndarray
 ```
 
-**Returns:** `np.ndarray` bool - `True` = valid in both images
+**Returns:** `np.ndarray` bool — logical AND of both masks
 
 ---
 
@@ -132,7 +139,7 @@ Set masked pixels to `NaN` in a float32 band array.
 def apply_mask(bands_array: np.ndarray, valid_mask: np.ndarray) -> np.ndarray
 ```
 
-**Returns:** `np.ndarray` float32 - same shape as `bands_array`, NaN where invalid
+**Returns:** `np.ndarray` float32 — same shape as `bands_array`, NaN where `valid_mask` is False
 
 ---
 
@@ -144,13 +151,13 @@ Compute per-pixel spectral difference for each band.
 
 ```python
 def compute_delta(
-    before_bands: np.ndarray,  # (4, H, W)
-    after_bands:  np.ndarray,  # (4, H, W)
+    before_bands: np.ndarray,  # (4, H, W) float32
+    after_bands:  np.ndarray,  # (4, H, W) float32
     valid_mask:   np.ndarray   # (H, W) bool
 ) -> np.ndarray                # (4, H, W) float32
 ```
 
-**Returns:** `delta` - `after - before`, NaN where `valid_mask` is False
+**Returns:** `delta = after - before`, NaN where `valid_mask` is False
 
 ---
 
@@ -162,24 +169,31 @@ Compute L2 norm of spectral delta across all bands.
 def compute_magnitude(delta_array: np.ndarray) -> np.ndarray
 ```
 
-**Formula:** `M = sqrt(sum(delta[b]^2 for b in bands))`  
+**Formula:** `M = sqrt(ΔB02² + ΔB03² + ΔB04² + ΔB08²)`
+
 **Returns:** `np.ndarray` shape `(H, W)`, float32
+
+> **BUG-01 fix (2026-08-20):** `np.nansum` returns 0 (not NaN) when all input values are NaN —
+> this caused cloud-masked pixels to appear as magnitude=0 instead of NaN, skewing the Otsu
+> threshold. Fix: after computing `nansum`, a mask of all-NaN pixels is detected via
+> `np.all(np.isnan(delta_array), axis=0)` and those positions are explicitly set to `np.nan`.
 
 ---
 
 ### `save_raster(array, profile, output_path)`
 
-Write a numpy array to GeoTIFF.
+Write a numpy array to GeoTIFF with correct CRS and transform.
 
 ```python
 def save_raster(
     array: np.ndarray,
     profile: dict,
-    output_path: Path
+    output_path: str | Path
 ) -> None
 ```
 
-Automatically handles 2D `(H, W)` and 3D `(bands, H, W)` arrays.
+Handles 2D `(H, W)` and 3D `(bands, H, W)` arrays automatically.  
+Always writes with `compress='deflate'` and appropriate `nodata` (NaN for float, 0 for int).
 
 ---
 
@@ -193,7 +207,8 @@ Compute Otsu threshold on valid (non-NaN) pixels.
 def otsu_threshold(magnitude_array: np.ndarray) -> float
 ```
 
-**Returns:** `float` - threshold value
+**Returns:** `float` — threshold value (via `skimage.filters.threshold_otsu`)  
+**Raises:** `ValueError` if all pixels are NaN (no valid data at all)
 
 ---
 
@@ -205,7 +220,7 @@ Apply threshold to produce binary change mask.
 def apply_threshold(magnitude_array: np.ndarray, threshold: float) -> np.ndarray
 ```
 
-**Returns:** `np.ndarray` bool `(H, W)` - `True` where `magnitude > threshold` AND valid
+**Returns:** `np.ndarray` bool `(H, W)` — `True` where `magnitude > threshold` AND not NaN
 
 ---
 
@@ -221,72 +236,40 @@ def clean_mask(
 ) -> np.ndarray
 ```
 
-**Returns:** `np.ndarray` bool - cleaned binary mask
+**Steps:** `binary_opening(open_size iterations)` → `binary_closing(close_size iterations)`  
+**Returns:** `np.ndarray` uint8 — cleaned binary mask (0 or 1)
 
 ---
 
 ### `save_change_mask(mask, profile, output_path)`
 
-Write binary mask as uint8 GeoTIFF (0/1).
+Write binary mask as uint8 GeoTIFF (0=no change, 1=change).
 
 ```python
-def save_change_mask(mask: np.ndarray, profile: dict, output_path: Path) -> None
+def save_change_mask(mask: np.ndarray, profile: dict, output_path: str | Path) -> None
 ```
+
+Writes with `dtype=uint8`, `nodata=0`, `compress=deflate`.
 
 ---
 
-## 6. Top-Level Runner: `run_pipeline.py` (Person 1)
-
-### CLI Usage
-
-```bash
-python run_pipeline.py [--before PATH] [--after PATH] [--output PATH]
-```
-
-| Argument | Default | Description |
-|---|---|---|
-| `--before` | `data/sentinel/before` | BEFORE bands folder |
-| `--after` | `data/sentinel/after` | AFTER bands folder |
-| `--output` | `outputs/maps` | Output folder for maps |
-
-### Exit Codes
-
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | Input data missing or unreadable |
-| 2 | All pixels cloud-masked - no valid data |
-| 3 | Unexpected error |
-
----
-
-## 7. Module: `src.vectorization.polygonize` (Person 2)
+## 6. Module: `src.vectorization.polygonize`
 
 ### `load_and_clean_mask(mask_path, open_size)`
 
-Load binary change mask raster and apply morphological opening to remove noise.
+Load binary change mask from disk and apply morphological opening.
 
 ```python
-def load_and_clean_mask(
-    mask_path: Path,
-    open_size: int = 3
-) -> tuple[np.ndarray, dict]
+def load_and_clean_mask(mask_path: str, open_size: int = 3) -> tuple[np.ndarray, dict]
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `mask_path` | `Path` | Path to `outputs/maps/change_mask.tif` |
-| `open_size` | `int` | Kernel size for morphological opening (default 3) |
-
-**Returns:**
-- `cleaned_mask` - `np.ndarray` uint8 `(H, W)`, values 0 or 1, noise removed
-- `profile` - `dict` - rasterio profile (CRS, transform, shape)
+**Returns:** `(cleaned_mask, profile)` — uint8 mask + rasterio profile
 
 ---
 
 ### `polygonize_mask(mask, profile, min_area_m2)`
 
-Convert binary change mask into a GeoDataFrame of change polygons.
+Convert binary mask to GeoDataFrame of change polygons.
 
 ```python
 def polygonize_mask(
@@ -296,101 +279,91 @@ def polygonize_mask(
 ) -> gpd.GeoDataFrame
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `mask` | `np.ndarray` | Cleaned binary mask `(H, W)` |
-| `profile` | `dict` | Rasterio profile from the mask raster |
-| `min_area_m2` | `float` | Minimum polygon area to keep (default 1000 m2) |
+**Steps:** `rasterio.features.shapes()` → filter by area → repair geometry → add lat/lon centroid → reproject to EPSG:4326
 
-**Returns:** `gpd.GeoDataFrame` with columns:
-- `id` - int, sequential identifier
-- `geometry` - Polygon geometry (CRS from mask)
-- `area_m2` - float, polygon area in square metres
-- `latitude` - float, centroid latitude (EPSG:4326)
-- `longitude` - float, centroid longitude (EPSG:4326)
-
-**Notes:**
-- Uses `rasterio.features.shapes()` for raster-to-vector conversion
-- Repairs invalid geometries with `.buffer(0)`
-- Filters polygons smaller than `min_area_m2`
+**Returns:** `GeoDataFrame` with columns: `id, geometry, area_m2, latitude, longitude` (CRS: EPSG:4326)  
+**Returns empty GDF** (not error) if no polygons pass the area filter.
 
 ---
 
-## 8. Module: `src.features.ndvi` (Person 2)
+## 7. Module: `src.features.ndvi`
 
 ### `compute_ndvi(band_folder, profile_ref)`
 
-Load B04 and B08 from a Sentinel-2 band folder and compute NDVI aligned to the reference grid.
+Compute NDVI from B04 (Red) and B08 (NIR) in a folder.
 
 ```python
-def compute_ndvi(
-    band_folder: Path,
-    profile_ref: dict
-) -> np.ndarray
+def compute_ndvi(band_folder: Path, profile_ref: dict) -> np.ndarray
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `band_folder` | `Path` | Folder containing B04 and B08 band files |
-| `profile_ref` | `dict` | Reference rasterio profile to align NDVI to (change mask grid) |
-
-**Returns:** `np.ndarray` float32 `(H, W)` - NDVI values in range [-1, 1]. NaN where B08+B04==0 or bands not found.
-
-**Formula:** `NDVI = (B08 - B04) / (B08 + B04)`
-
-**Fallback:** If B04 or B08 not found, logs a warning and returns array of NaN. Pipeline continues gracefully.
+**Formula:** `NDVI = (B08 - B04) / (B08 + B04)` — NaN where denominator is 0  
+**Returns:** `np.ndarray` shape `(H, W)`, float32, range `[-1, 1]`, NaN where invalid  
+**Fallback:** Returns all-NaN array with a warning if B04 or B08 not found.
 
 ---
 
-## 9. Module: `src.features.extractor` (Person 2)
+## 8. Module: `src.features.extractor`
 
-### `extract_features(gdf, magnitude_path, delta_path, ndvi_before, ndvi_after, mask_transform)`
+### `extract_features(gdf, magnitude_path, magnitude_profile, spectral_delta_path, spectral_delta_profile, ndvi_before, ndvi_after)`
 
-Enrich a GeoDataFrame of change polygons with raster-sampled and computed features.
+Extract 16 features per polygon from raster layers.
 
 ```python
 def extract_features(
     gdf: gpd.GeoDataFrame,
-    magnitude_path: Path,
-    delta_path: Path,
+    magnitude_path: str, magnitude_profile: dict,
+    spectral_delta_path: str, spectral_delta_profile: dict,
     ndvi_before: np.ndarray,
-    ndvi_after: np.ndarray,
-    mask_transform: rasterio.Affine,
-) -> gpd.GeoDataFrame
+    ndvi_after: np.ndarray
+) -> pd.DataFrame
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `gdf` | `gpd.GeoDataFrame` | Change polygons from `polygonize_mask()` |
-| `magnitude_path` | `Path` | Path to `outputs/maps/change_magnitude.tif` |
-| `delta_path` | `Path` | Path to `data/processed/spectral_delta.tif` |
-| `ndvi_before` | `np.ndarray` | NDVI before array `(H, W)` from `compute_ndvi()` |
-| `ndvi_after` | `np.ndarray` | NDVI after array `(H, W)` from `compute_ndvi()` |
-| `mask_transform` | `Affine` | Affine transform from the change mask raster |
+**Output columns (16 total):**
 
-**Returns:** `gpd.GeoDataFrame` with all 16 feature columns added (see `03_DATABASE_DESIGN.md` section 4.3 for full column list).
-
-**Sampling method:** `rasterio.features.geometry_mask()` per polygon, then `np.nanmean()` / `np.nanmax()`.
+| Column | Description |
+|---|---|
+| `id` | Sequential polygon ID |
+| `area_m2` | Polygon area in square metres |
+| `latitude` | Centroid latitude (WGS84) |
+| `longitude` | Centroid longitude (WGS84) |
+| `cva_mean` | Mean CVA magnitude inside polygon |
+| `cva_max` | Max CVA magnitude inside polygon |
+| `ndvi_before` | Mean NDVI before change |
+| `ndvi_after` | Mean NDVI after change |
+| `delta_ndvi` | `ndvi_after - ndvi_before` |
+| `delta_b02` | Mean ΔB02 (Blue) inside polygon |
+| `delta_b03` | Mean ΔB03 (Green) inside polygon |
+| `delta_b04` | Mean ΔB04 (Red) inside polygon |
+| `delta_b08` | Mean ΔB08 (NIR) inside polygon |
+| `bbox_width_m` | Bounding box width (metres) |
+| `bbox_height_m` | Bounding box height (metres) |
+| `compactness` | 4π·area/perimeter² (1=perfect circle, 0=very elongated) |
 
 ---
 
-## 10. Top-Level Runner: `run_vectorize.py` (Person 2)
+## 9. Top-Level Runners
 
-### CLI Usage
+### `run_pipeline.py` — Person 1 pipeline
+
+```bash
+python run_pipeline.py [--before PATH] [--after PATH]
+```
+
+| Arg | Default | Description |
+|---|---|---|
+| `--before` | `data/sentinel/before` | BEFORE bands folder |
+| `--after` | `data/sentinel/after` | AFTER bands folder |
+
+Exit codes: `0`=success, `1`=data missing or all-cloud, `3`=unexpected error
+
+### `run_vectorize.py` — Person 2 pipeline
 
 ```bash
 python run_vectorize.py [--min-area FLOAT]
 ```
 
-| Argument | Default | Description |
+| Arg | Default | Description |
 |---|---|---|
-| `--min-area` | `1000.0` | Minimum polygon area in m2 to keep |
+| `--min-area` | `1000.0` | Minimum polygon area in m² |
 
-### Exit Codes
-
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | Person 1 output files missing (run `run_pipeline.py` first) |
-| 2 | No change polygons found after filtering |
-| 3 | Unexpected error |
+Exit codes: `0`=success, `1`=Person 1 outputs missing or no polygons found

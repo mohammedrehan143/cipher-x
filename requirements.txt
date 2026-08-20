@@ -8,4 +8,5 @@ opencv-python
 rasterio
 geopandas
 shapely
+pyproj
 streamlit

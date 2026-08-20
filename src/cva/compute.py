@@ -37,6 +37,10 @@ def compute_magnitude(delta_array: np.ndarray) -> np.ndarray:
         magnitude: (H, W) float32, NaN where invalid
     """
     magnitude = np.sqrt(np.nansum(delta_array**2, axis=0))
+    # BUG-01 FIX: nansum treats NaN as 0, so all-masked pixels get
+    # magnitude=0 instead of NaN. Re-apply NaN where every band is NaN.
+    all_invalid = np.all(np.isnan(delta_array), axis=0)
+    magnitude[all_invalid] = np.nan
     return magnitude.astype(np.float32)
 
 

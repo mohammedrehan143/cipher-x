@@ -1,7 +1,7 @@
 ﻿# 05 — MODULE RESPONSIBILITIES
 
 > **Project:** CIPHER-X  
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-20 (updated: removed erroneous Person 3 references — BUG-05 fix)
 
 ---
 
@@ -9,9 +9,10 @@
 
 | Person | Role | Focus Area |
 |---|---|---|
-| Person 1 | Satellite Data Engineer | Preprocessing + CVA |
-| Person 2 | GIS & Feature Engineer | Vectorization + Feature Extraction + ML Handoff |
-| Person 3 | ML Engineer | Classification model (uses Person 2 outputs) |
+| Person 1 | Satellite Data Engineer | Sentinel-2 preprocessing + CVA change detection |
+| Person 2 | ML & GIS Engineer | Vectorization + Feature extraction + ML classifier + Streamlit dashboard |
+
+> **Note:** This is a 2-person team. There is no Person 3. The ML classifier is Person 2's responsibility.
 
 ---
 
@@ -21,26 +22,26 @@
 
 | Module | File | Status |
 |---|---|---|
-| Band Loader | `src/preprocessing/loader.py` | ✅ Done | find_band_file, load_bands |
-| Image Alignment | `src/preprocessing/align.py` | ✅ Done | align_to_reference, align_images |
-| Cloud Masking | `src/preprocessing/masking.py` | ✅ Done | scl_to_mask, combine_masks, apply_mask |
-| CVA Computation | `src/cva/compute.py` | ✅ Done | compute_delta, compute_magnitude, save_raster |
-| Thresholding | `src/cva/threshold.py` | ✅ Done | otsu_threshold, apply_threshold, clean_mask, save_change_mask |
-| Pipeline Runner | `run_pipeline.py` | ✅ Done | CLI with --before/--after args |
+| Band Loader | `src/preprocessing/loader.py` | ✅ Complete |
+| Image Alignment | `src/preprocessing/align.py` | ✅ Complete (BUG-04 fixed) |
+| Cloud Masking | `src/preprocessing/masking.py` | ✅ Complete |
+| CVA Computation | `src/cva/compute.py` | ✅ Complete (BUG-01 fixed) |
+| Thresholding | `src/cva/threshold.py` | ✅ Complete |
+| Pipeline Runner | `run_pipeline.py` | ✅ Complete (BUG-06 fixed) |
 
 ### Deliverables to Person 2
 
 | File | Description |
 |---|---|
-| `outputs/maps/change_mask.tif` | Binary change mask (uint8, 0/1) |
-| `outputs/maps/change_magnitude.tif` | Continuous magnitude (float32) |
-| `data/processed/spectral_delta.tif` | 4-band spectral delta (float32) |
+| `outputs/maps/change_mask.tif` | Binary change mask (uint8, 0=no change, 1=change) |
+| `outputs/maps/change_magnitude.tif` | Continuous CVA magnitude (float32, NaN where cloud-masked) |
+| `data/processed/spectral_delta.tif` | 4-band spectral delta (float32): [ΔB02, ΔB03, ΔB04, ΔB08] |
 
 ### Guaranteed Interface
 
 - All outputs share the same CRS and transform as the input Sentinel-2 data.
-- Cloud-masked pixels are NaN in float rasters and 0 in the mask raster.
-- Band order in `spectral_delta.tif`: [dB02, dB03, dB04, dB08].
+- Cloud-masked pixels are **NaN** in float rasters and **0** in the mask raster.
+- Band order in `spectral_delta.tif`: Band 1=ΔB02, Band 2=ΔB03, Band 3=ΔB04, Band 4=ΔB08.
 - Pipeline is triggered by: `python run_pipeline.py`
 
 ### NOT in Person 1's scope
@@ -53,93 +54,71 @@
 
 ---
 
-## 3. Person 2 — Vectorization & Feature Extraction
+## 3. Person 2 — Vectorization, Features, ML Classifier & Dashboard
 
 ### Owned Modules
 
 | Module | File | Status |
 |---|---|---|
-| Change Mask Vectorization | `src/vectorization/polygonize.py` | ✅ Done | load_and_clean_mask, polygonize_mask |
-| NDVI Calculator | `src/features/ndvi.py` | ✅ Done | compute_ndvi |
-| Feature Extractor | `src/features/extractor.py` | ✅ Done | extract_features |
-| Person 2 Runner | `run_vectorize.py` | ✅ Done | CLI with --min-area arg |
+| Vectorization | `src/vectorization/polygonize.py` | ✅ Complete |
+| NDVI Computation | `src/features/ndvi.py` | ✅ Complete |
+| Feature Extraction | `src/features/extractor.py` | ✅ Complete (16 features) |
+| Vectorize Runner | `run_vectorize.py` | ✅ Complete |
+| **ML Classifier** | `src/models/classifier.py` | ❌ **Not yet built — Person 2's task** |
+| **Dashboard** | `app/main.py` | ❌ **Not yet built — Person 2's task** |
 
 ### Inputs from Person 1
 
-Person 2 reads these files (guaranteed to exist after Person 1's pipeline runs):
+Person 2 reads these files (guaranteed to exist after `python run_pipeline.py`):
 
 | File | How to use |
 |---|---|
-| `outputs/maps/change_mask.tif` | Vectorize with `rasterio.features.shapes()` |
-| `outputs/maps/change_magnitude.tif` | Sample per-polygon: `cva_mean`, `cva_max` |
-| `data/processed/spectral_delta.tif` | Sample per-polygon: `delta_b02`, `delta_b03`, `delta_b04`, `delta_b08` |
-| `data/sentinel/before/` | Read B04 + B08 for NDVI before |
-| `data/sentinel/after/` | Read B04 + B08 for NDVI after |
+| `outputs/maps/change_mask.tif` | `rasterio.open()` → vectorize with `rasterio.features.shapes()` |
+| `outputs/maps/change_magnitude.tif` | Mean magnitude per polygon attribute |
+| `data/processed/spectral_delta.tif` | 4-band per-polygon spectral features |
 
-### Implementation Plan (PERSON2_PIPELINE.md)
-
-Full phased implementation plan is documented in `PERSON2_PIPELINE.md` at the project root.
-
-Summary of phases:
-
-| Phase | Module | Goal |
-|---|---|---|
-| 0 | requirements.txt + inits | Add scikit-image, scipy, shapely; create __init__.py files |
-| 1 | polygonize.py | Mask noise removal → connected regions → polygons → lat/lon |
-| 2a | ndvi.py | Compute NDVI before and after with safe NaN handling |
-| 2b | extractor.py | Sample all raster layers per polygon; compute 16 features |
-| 3 | run_vectorize.py | Single-command pipeline runner |
-| 4 | Verification | GeoJSON valid, CSV correct, opens in QGIS |
-
-### Deliverables
-
-| File | Description | Consumer |
-|---|---|---|
-| `outputs/polygons/change_results.geojson` | Change polygons with 16 feature attributes | QGIS, Person 3 |
-| `outputs/predictions/change_features.csv` | Flat feature table (16 columns) | Person 3 - ML |
-
-### Feature Columns (both outputs)
-
-| Column | Type | Description |
-|---|---|---|
-| id | int | Unique polygon identifier |
-| area_m2 | float | Polygon area in square metres |
-| latitude | float | Centroid latitude (WGS84) |
-| longitude | float | Centroid longitude (WGS84) |
-| cva_mean | float | Mean CVA magnitude inside polygon |
-| cva_max | float | Max CVA magnitude inside polygon |
-| ndvi_before | float | Mean NDVI before event |
-| ndvi_after | float | Mean NDVI after event |
-| delta_ndvi | float | ndvi_after minus ndvi_before |
-| delta_b02 | float | Mean delta Blue inside polygon |
-| delta_b03 | float | Mean delta Green inside polygon |
-| delta_b04 | float | Mean delta Red inside polygon |
-| delta_b08 | float | Mean delta NIR inside polygon |
-| bbox_width_m | float | Bounding box width in metres |
-| bbox_height_m | float | Bounding box height in metres |
-| compactness | float | Shape compactness (0 to 1; 1 = circle) |
-
-### How Person 3 Reads Person 2 Output
+### Reading Person 1 Outputs (Sample Code)
 
 ```python
-import pandas as pd
+import rasterio
+import numpy as np
 
-df = pd.read_csv("outputs/predictions/change_features.csv")
+# Read change mask
+with rasterio.open("outputs/maps/change_mask.tif") as src:
+    mask = src.read(1)           # shape (H, W), uint8, values 0 or 1
+    transform = src.transform
+    crs = src.crs
 
-feature_cols = [
-    "area_m2", "cva_mean", "cva_max",
-    "ndvi_before", "ndvi_after", "delta_ndvi",
-    "delta_b02", "delta_b03", "delta_b04", "delta_b08",
-    "bbox_width_m", "bbox_height_m", "compactness"
-]
-X = df[feature_cols].values
-# id, latitude, longitude available as metadata
+# Read spectral delta for features
+with rasterio.open("data/processed/spectral_delta.tif") as src:
+    delta = src.read()           # shape (4, H, W)
+    # Band 1=ΔB02, Band 2=ΔB03, Band 3=ΔB04, Band 4=ΔB08
 ```
 
-### NOT in Person 2's scope (per 24-hour MVP plan)
+### Person 2 Deliverables
 
-- ML classification model (Person 3)
-- Streamlit dashboard (out of scope per prompt)
+| File | Description |
+|---|---|
+| `outputs/polygons/change_results.geojson` | Change polygons with 16 feature attributes |
+| `outputs/predictions/change_features.csv` | Flat feature table (16 columns) for ML input |
+| `outputs/predictions/classified.geojson` | Classified polygons with `class_label` attribute |
+| `app/main.py` | Streamlit dashboard entry point |
+
+### How to Run Person 2 Pipeline
+
+```bash
+# Step 1: Person 1 must run first
+python run_pipeline.py
+
+# Step 2: Vectorize and extract features
+python run_vectorize.py
+
+# Step 3: Train/run ML classifier (to be built)
+python src/models/classifier.py
+
+# Step 4: Launch dashboard
+streamlit run app/main.py
+```
 
 ---
 
@@ -151,34 +130,39 @@ X = df[feature_cols].values
 | CRS | Never hardcode EPSG; inherit from input data |
 | NoData | NaN for float rasters, 0 for uint8 mask |
 | Band order | Always document band order in comments |
-| Logging | Use `print` with `[step/total]` prefix for pipeline steps |
-| Error handling | Raise descriptive errors; never silently continue on data missing |
-| GeoJSON CRS | Always save GeoJSON in EPSG:4326 (GeoJSON spec requirement) |
-| Area calculation | Always compute area in native UTM before reprojecting to WGS84 |
+| Logging | Use `print("[step/total] message")` prefix in pipeline steps |
+| Error handling | Raise descriptive errors; never silently continue on missing data |
+| Secrets | Never hardcode credentials; use `.env` file (never commit it) |
 
 ---
 
 ## 5. Communication Protocol
 
 During the hackathon:
-- Person 1 signals completion by: running `python run_pipeline.py` and confirming outputs exist
-- Person 2 checks: `outputs/maps/change_mask.tif` and `outputs/maps/change_magnitude.tif` exist before starting
-- Person 2 signals completion by: running `python run_vectorize.py` and confirming outputs exist
-- Person 3 checks: `outputs/predictions/change_features.csv` exists before starting ML
-- Use `PERSON1_PIPELINE.md` and `PERSON2_PIPELINE.md` progress trackers for status
+- Share intermediate files via USB / shared network folder / Google Drive
+- **Confirm Person 1 outputs exist before Person 2 starts** — run verification:
+  ```bash
+  python -c "
+  import os
+  for f in ['outputs/maps/change_mask.tif','outputs/maps/change_magnitude.tif','data/processed/spectral_delta.tif']:
+      print('OK' if os.path.exists(f) else 'MISSING', f)
+  "
+  ```
+- Update `PERSON1_PIPELINE.md` and `PERSON2_PIPELINE.md` progress trackers as you go
+- Check in at each phase completion
 
 ---
 
 ## 6. Timeline (24-Hour Window)
 
-| Hour | Person 1 | Person 2 | Person 3 |
-|---|---|---|---|
-| 0-2 | Setup + data download | Setup + read this doc | Setup |
-| 2-5 | loader.py + align.py | Plan + Phase 0 | Plan ML approach |
-| 5-8 | masking.py + compute.py | Phase 1: polygonize.py | Wait for P2 outputs |
-| 8-10 | threshold.py + run_pipeline.py | Phase 2: ndvi.py + extractor.py | - |
-| 10-13 | Verify outputs | Phase 3: run_vectorize.py | Start ML on partial data |
-| 13-16 | Verify + fix bugs | Phase 4: Verify GeoJSON/CSV | ML classification |
-| 16-20 | Support P2 integration | Handoff to Person 3 | Finalize model |
-| 20-22 | Documentation | Update this doc | Documentation |
-| 22-24 | Rehearse demo | Rehearse demo | Rehearse demo |
+| Hour | Person 1 | Person 2 |
+|---|---|---|
+| 0–2 | Setup + data download | Setup + review plan |
+| 2–5 | `loader.py` + `align.py` | Study vectorization plan |
+| 5–8 | `masking.py` + `compute.py` | Implement `polygonize.py` |
+| 8–10 | `threshold.py` + `run_pipeline.py` | Implement feature extraction |
+| 10–13 | Verify + fix bugs | Build ML classifier |
+| 13–16 | Verify outputs with Person 2 | Build Streamlit dashboard skeleton |
+| 16–20 | Support Person 2 integration | Integrate map + predictions |
+| 20–22 | Update docs | Update docs |
+| 22–24 | Rehearse demo | Rehearse demo |
