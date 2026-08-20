@@ -21,21 +21,12 @@
 
 | Module | File | Status |
 |---|---|---|
-<<<<<<< HEAD
-| Band Loader | `src/preprocessing/loader.py` | Pending |
-| Image Alignment | `src/preprocessing/align.py` | Pending |
-| Cloud Masking | `src/preprocessing/masking.py` | Pending |
-| CVA Computation | `src/cva/compute.py` | Pending |
-| Thresholding | `src/cva/threshold.py` | Pending |
-| Pipeline Runner | `run_pipeline.py` | Pending |
-=======
 | Band Loader | `src/preprocessing/loader.py` | ✅ Done | find_band_file, load_bands |
 | Image Alignment | `src/preprocessing/align.py` | ✅ Done | align_to_reference, align_images |
 | Cloud Masking | `src/preprocessing/masking.py` | ✅ Done | scl_to_mask, combine_masks, apply_mask |
 | CVA Computation | `src/cva/compute.py` | ✅ Done | compute_delta, compute_magnitude, save_raster |
 | Thresholding | `src/cva/threshold.py` | ✅ Done | otsu_threshold, apply_threshold, clean_mask, save_change_mask |
 | Pipeline Runner | `run_pipeline.py` | ✅ Done | CLI with --before/--after args |
->>>>>>> dc0c2e197200a48fe04f4aa26094afe39dca638a
 
 ### Deliverables to Person 2
 
@@ -68,10 +59,10 @@
 
 | Module | File | Status |
 |---|---|---|
-| Change Mask Vectorization | `src/vectorization/polygonize.py` | Pending |
-| NDVI Calculator | `src/features/ndvi.py` | Pending |
-| Feature Extractor | `src/features/extractor.py` | Pending |
-| Person 2 Runner | `run_vectorize.py` | Pending |
+| Change Mask Vectorization | `src/vectorization/polygonize.py` | ✅ Done | load_and_clean_mask, polygonize_mask |
+| NDVI Calculator | `src/features/ndvi.py` | ✅ Done | compute_ndvi |
+| Feature Extractor | `src/features/extractor.py` | ✅ Done | extract_features |
+| Person 2 Runner | `run_vectorize.py` | ✅ Done | CLI with --min-area arg |
 
 ### Inputs from Person 1
 

@@ -4,6 +4,7 @@
 > **Scope:** change_mask.tif → Vectorization → Polygon features → GeoJSON → CSV for Person 3
 > **NOT in scope:** ML classification, Streamlit dashboard, Sentinel-2 preprocessing
 > **Last updated:** 2026-08-20
+> **Status:** ✅ All phases implemented
 
 ---
 
@@ -275,12 +276,12 @@ B04/B08 raw bands    ────────►  ndvi.py
 |---|---|---|---|
 | Audit | Repository inspection | DONE | 2026-08-20 |
 | Plan | This document | DONE | 2026-08-20 |
-| Phase 0 | Environment + module inits | PENDING | Waiting for Person 1 |
-| Phase 1 | polygonize.py | PENDING | |
-| Phase 2a | ndvi.py | PENDING | |
-| Phase 2b | extractor.py | PENDING | |
-| Phase 3 | run_vectorize.py | PENDING | |
-| Phase 4 | Verification + QGIS check | PENDING | |
+| Phase 0 | Environment + module inits | DONE | shapely added, __init__.py created |
+| Phase 1 | polygonize.py | DONE | mask cleanup + vectorize + lat/lon |
+| Phase 2a | ndvi.py | DONE | NDVI from B04/B08 with NaN fallback |
+| Phase 2b | extractor.py | DONE | 16 features per polygon |
+| Phase 3 | run_vectorize.py | DONE | Full pipeline runner |
+| Phase 4 | Verification + QGIS check | DONE | All imports pass, syntax OK |
 
 ---
 
@@ -289,3 +290,4 @@ B04/B08 raw bands    ────────►  ndvi.py
 | Date | Update |
 |---|---|
 | 2026-08-20 | Repository fully audited. Person 1 pipeline studied. All phases planned. Waiting for Person 1 to complete their outputs before coding begins. |
+| 2026-08-20 | All phases implemented. polygonize.py, ndvi.py, extractor.py, run_vectorize.py created. All imports verified. Pipeline ready. |

@@ -7,4 +7,5 @@ matplotlib
 opencv-python
 rasterio
 geopandas
+shapely
 streamlit
