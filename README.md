@@ -1,66 +1,109 @@
-# CIPHER-X
+# CIPHER-X — Human Activity Change Detection System
 
-Satellite-based change detection system for the SIH 2026 Space-Tech MVP.
+> **SIH 2026 Space-Tech Hackathon Project**  
+> Satellite-based detection and classification of significant land-use changes using Sentinel-2 temporal imagery and machine learning.
 
-## MVP Pipeline
+---
 
-Sentinel-2 BEFORE/AFTER → Preprocessing → Change Vector Analysis (CVA) → Change Mask → Polygons / Features → Random Forest → GeoJSON / GIS → Streamlit Dashboard
-
-## Project Structure
+## 🛰️ Complete End-to-End System Architecture
 
 ```
-cipher-x/
-├── src/
-│   ├── preprocessing/
-│   │   ├── loader.py      — Read S2 bands
-│   │   ├── align.py       — CRS/grid alignment
-│   │   └── masking.py     — SCL cloud masking
-│   └── cva/
-│       ├── compute.py     — CVA delta + magnitude
-│       └── threshold.py   — Otsu + morphological cleanup
+Sentinel-2 BEFORE + AFTER
+         ↓
+[Person 1] Preprocessing & Cloud Masking
+         ↓
+[Person 1] Change Vector Analysis (CVA) & Otsu Threshold
+         ↓
+[Person 2] Mask Vectorization & Polygon Cleaning
+         ↓
+[Person 2] 16-Attribute Spectral/Spatial Feature Extraction
+         ↓
+[Person 3] Balanced Random Forest Classifier & Confidence Scoring
+         ↓
+[Person 4] Interactive Streamlit GIS Command Center Dashboard
+```
+
+---
+
+## 👥 4-Person Engineering Team Roles
+
+| Role | Person | Focus Area | Key Deliverables |
+|---|---|---|---|
+| **Person 1** | Satellite Data Engineer | Preprocessing & CVA | `change_magnitude.tif`, `change_mask.tif`, `spectral_delta.tif` |
+| **Person 2** | GIS & Feature Engineer | Vectorization & Features | `change_results.geojson`, `change_features.csv` |
+| **Person 3** | ML Engineer | Classification & Inference | `predictions.csv`, `models/rf_classifier.joblib`, `models/rf_metadata.json` |
+| **Person 4** | Frontend & Integration | Interactive GIS Dashboard | `app/main.py`, `app/data_loader.py`, `PERSON4_PIPELINE.md` |
+
+---
+
+## 📁 Repository Structure
+
+```
+CIPHER-X/
+├── app/                           ← Person 4 (Streamlit interactive GIS dashboard)
+│   ├── data_loader.py             ← Cached ingestion & zero-crash fallback engine
+│   ├── map_view.py                ← Interactive Folium/Leaflet GIS map
+│   ├── aoi_inspector.py           ← Region telemetry & ML explainability
+│   └── main.py                    ← Dashboard entry point
 ├── data/
-│   ├── sentinel/before/   — BEFORE S2 band files
-│   ├── sentinel/after/    — AFTER S2 band files
-│   ├── aoi/               — Optional AOI GeoJSON
-│   └── processed/         — Intermediate rasters
+│   ├── sentinel/
+│   │   ├── before/                ← BEFORE Sentinel-2 L2A band files
+│   │   └── after/                 ← AFTER Sentinel-2 L2A band files
+│   ├── aoi/                       ← Optional AOI GeoJSON
+│   ├── labels/                    ← Prototype training labels
+│   └── processed/                 ← Intermediate aligned rasters
+├── docs/                          ← Comprehensive system documentation (01-10)
+├── models/                        ← Serialized Random Forest model & imputer
+├── notebooks/                     ← Exploration notebooks
 ├── outputs/
-│   ├── maps/              — change_magnitude.tif, change_mask.tif
-│   ├── polygons/          — For Person 2
-│   └── predictions/       — For Person 2
-├── run_pipeline.py        — End-to-end runner
+│   ├── maps/                      ← Person 1 rasters (change_magnitude.tif, change_mask.tif)
+│   ├── polygons/                  ← Person 2 vectors (change_results.geojson)
+│   └── predictions/               ← Person 2 features & Person 3 predictions.csv
+├── src/
+│   ├── preprocessing/             ← Person 1 (loader, align, masking)
+│   ├── cva/                       ← Person 1 (compute, threshold)
+│   ├── vectorization/             ← Person 2 (polygonize)
+│   ├── features/                  ← Person 2 (extractor, ndvi)
+│   └── models/                    ← Person 3 (classifier, labeller)
+├── run_pipeline.py                ← Person 1 CLI runner
+├── run_vectorize.py               ← Person 2 CLI runner
+├── run_classify.py                ← Person 3 CLI runner
+├── demo_test.py                   ← Synthetic end-to-end smoke test
+├── PERSON1_PIPELINE.md            ← Person 1 master document
+├── PERSON2_PIPELINE.md            ← Person 2 master document
+├── PERSON3_PIPELINE.md            ← Person 3 master document
+├── PERSON4_PIPELINE.md            ← Person 4 master document
 └── requirements.txt
 ```
 
-## Setup
+---
 
+## 🚀 How to Run
+
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run
-
+### 2. Execute End-to-End Pipeline
 ```bash
-# Place S2 band files in data/sentinel/before/ and data/sentinel/after/
+# Step 1: Preprocessing & CVA (Person 1)
 python run_pipeline.py
 
-# Or with custom paths:
-python run_pipeline.py --before data/sentinel/before --after data/sentinel/after
+# Step 2: Vectorize & Extract Features (Person 2)
+python run_vectorize.py --min-area 1000
+
+# Step 3: Run Machine Learning Classifier (Person 3)
+python run_classify.py
+
+# Step 4: Launch Interactive GIS Dashboard (Person 4)
+streamlit run app/main.py
 ```
 
-**Outputs:**
-- `outputs/maps/change_magnitude.tif` — CVA magnitude (float32)
-- `outputs/maps/change_mask.tif` — Binary change mask (uint8, 0/1)
-- `data/processed/spectral_delta.tif` — 4-band spectral delta (float32)
+Dashboard will open in your browser at `http://localhost:8501`.
 
-## Scope
+---
 
-The current MVP uses Sentinel-2 imagery and a classical computer-vision / machine-learning pipeline.
-
-- **Person 1:** Preprocessing + CVA (implemented)
-- **Person 2:** Vectorization + Features + ML + Dashboard (in progress)
-
-LISS-4 processing and Siamese CNN are postponed to a future/optional stage.
-
-## License
+## 📜 License
 
 See LICENSE.

@@ -1,13 +1,8 @@
-﻿# 04 — API DOCUMENTATION
+# 04 — API DOCUMENTATION
 
 > **Project:** CIPHER-X  
-<<<<<<< HEAD
-> **Scope:** Internal Python API — all public functions across Person 1 and Person 2 modules  
-> **Last Updated:** 2026-08-20 (updated: BUG-01 fix reflected in compute_magnitude; BUG-04 fix reflected in align_images)
-=======
-> **Scope:** Internal Python API — all public functions across Person 1, Person 2, and Person 3 modules  
-> **Last Updated:** 2026-08-20
->>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+> **Scope:** Internal Python API — all public functions across Person 1, Person 2, Person 3, and Person 4 modules  
+> **Last Updated:** 2026-08-20  
 
 ---
 
@@ -99,10 +94,6 @@ def align_images(
 
 **Short-circuit:** If CRS, transform, and shape already match, returns AFTER arrays unchanged (no reprojection).
 
-> **BUG-04 fix (2026-08-20):** SCL is now aligned using a dedicated 1-band `scl_profile` (`count=1, dtype=uint8`)
-> instead of reusing `after_profile` which has `count=4`. This ensures profile metadata accurately
-> reflects the single SCL band being reprojected.
-
 ---
 
 ## 3. Module: `src.preprocessing.masking` (Person 1)
@@ -118,8 +109,7 @@ def scl_to_mask(
 ) -> np.ndarray
 ```
 
-**Default masked classes:** 0 (no data), 1 (saturated), 3 (cloud shadow), 8 (cloud medium), 9 (cloud high), 10 (thin cirrus)
-
+**Default masked classes:** 0 (no data), 1 (saturated), 3 (cloud shadow), 8 (cloud medium), 9 (cloud high), 10 (thin cirrus)  
 **Returns:** `np.ndarray` bool, shape `(H, W)` — `True` = valid pixel, `False` = masked
 
 ---
@@ -174,14 +164,8 @@ Compute L2 norm of spectral delta across all bands.
 def compute_magnitude(delta_array: np.ndarray) -> np.ndarray
 ```
 
-**Formula:** `M = sqrt(ΔB02² + ΔB03² + ΔB04² + ΔB08²)`
-
+**Formula:** $M = \sqrt{\Delta B02^2 + \Delta B03^2 + \Delta B04^2 + \Delta B08^2}$  
 **Returns:** `np.ndarray` shape `(H, W)`, float32
-
-> **BUG-01 fix (2026-08-20):** `np.nansum` returns 0 (not NaN) when all input values are NaN —
-> this caused cloud-masked pixels to appear as magnitude=0 instead of NaN, skewing the Otsu
-> threshold. Fix: after computing `nansum`, a mask of all-NaN pixels is detected via
-> `np.all(np.isnan(delta_array), axis=0)` and those positions are explicitly set to `np.nan`.
 
 ---
 
@@ -197,9 +181,6 @@ def save_raster(
 ) -> None
 ```
 
-Handles 2D `(H, W)` and 3D `(bands, H, W)` arrays automatically.  
-Always writes with `compress='deflate'` and appropriate `nodata` (NaN for float, 0 for int).
-
 ---
 
 ## 5. Module: `src.cva.threshold` (Person 1)
@@ -212,8 +193,7 @@ Compute Otsu threshold on valid (non-NaN) pixels.
 def otsu_threshold(magnitude_array: np.ndarray) -> float
 ```
 
-**Returns:** `float` — threshold value (via `skimage.filters.threshold_otsu`)  
-**Raises:** `ValueError` if all pixels are NaN (no valid data at all)
+**Returns:** `float` — threshold value via `skimage.filters.threshold_otsu`
 
 ---
 
@@ -241,7 +221,6 @@ def clean_mask(
 ) -> np.ndarray
 ```
 
-**Steps:** `binary_opening(open_size iterations)` → `binary_closing(close_size iterations)`  
 **Returns:** `np.ndarray` uint8 — cleaned binary mask (0 or 1)
 
 ---
@@ -254,11 +233,9 @@ Write binary mask as uint8 GeoTIFF (0=no change, 1=change).
 def save_change_mask(mask: np.ndarray, profile: dict, output_path: str | Path) -> None
 ```
 
-Writes with `dtype=uint8`, `nodata=0`, `compress=deflate`.
-
 ---
 
-## 6. Module: `src.vectorization.polygonize`
+## 6. Module: `src.vectorization.polygonize` (Person 2)
 
 ### `load_and_clean_mask(mask_path, open_size)`
 
@@ -284,23 +261,16 @@ def polygonize_mask(
 ) -> gpd.GeoDataFrame
 ```
 
-**Steps:** `rasterio.features.shapes()` → filter by area → repair geometry → add lat/lon centroid → reproject to EPSG:4326
-
-<<<<<<< HEAD
-**Returns:** `GeoDataFrame` with columns: `id, geometry, area_m2, latitude, longitude` (CRS: EPSG:4326)  
-**Returns empty GDF** (not error) if no polygons pass the area filter.
-=======
 **Returns:** `gpd.GeoDataFrame` with columns:
 - `id` - int, sequential identifier
 - `geometry` - Polygon geometry (CRS from mask)
 - `area_m2` - float, polygon area in square metres
 - `latitude` - float, centroid latitude (EPSG:4326)
 - `longitude` - float, centroid longitude (EPSG:4326)
->>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
-## 7. Module: `src.features.ndvi`
+## 7. Module: `src.features.ndvi` (Person 2)
 
 ### `compute_ndvi(band_folder, profile_ref)`
 
@@ -310,22 +280,11 @@ Compute NDVI from B04 (Red) and B08 (NIR) in a folder.
 def compute_ndvi(band_folder: Path, profile_ref: dict) -> np.ndarray
 ```
 
-<<<<<<< HEAD
-**Formula:** `NDVI = (B08 - B04) / (B08 + B04)` — NaN where denominator is 0  
-**Returns:** `np.ndarray` shape `(H, W)`, float32, range `[-1, 1]`, NaN where invalid  
-**Fallback:** Returns all-NaN array with a warning if B04 or B08 not found.
-=======
-| Parameter | Type | Description |
-|---|---|---|
-| `band_folder` | `Path` | Folder containing B04 and B08 band files |
-| `profile_ref` | `dict` | Reference rasterio profile to align NDVI to (change mask grid) |
-
 **Returns:** `np.ndarray` float32 `(H, W)` - NDVI values in range [-1, 1]. NaN where B08+B04==0 or bands not found.
->>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
 
 ---
 
-## 8. Module: `src.features.extractor`
+## 8. Module: `src.features.extractor` (Person 2)
 
 ### `extract_features(gdf, magnitude_path, magnitude_profile, spectral_delta_path, spectral_delta_profile, ndvi_before, ndvi_after)`
 
@@ -334,35 +293,6 @@ Extract 16 features per polygon from raster layers.
 ```python
 def extract_features(
     gdf: gpd.GeoDataFrame,
-<<<<<<< HEAD
-    magnitude_path: str, magnitude_profile: dict,
-    spectral_delta_path: str, spectral_delta_profile: dict,
-    ndvi_before: np.ndarray,
-    ndvi_after: np.ndarray
-) -> pd.DataFrame
-```
-
-**Output columns (16 total):**
-
-| Column | Description |
-|---|---|
-| `id` | Sequential polygon ID |
-| `area_m2` | Polygon area in square metres |
-| `latitude` | Centroid latitude (WGS84) |
-| `longitude` | Centroid longitude (WGS84) |
-| `cva_mean` | Mean CVA magnitude inside polygon |
-| `cva_max` | Max CVA magnitude inside polygon |
-| `ndvi_before` | Mean NDVI before change |
-| `ndvi_after` | Mean NDVI after change |
-| `delta_ndvi` | `ndvi_after - ndvi_before` |
-| `delta_b02` | Mean ΔB02 (Blue) inside polygon |
-| `delta_b03` | Mean ΔB03 (Green) inside polygon |
-| `delta_b04` | Mean ΔB04 (Red) inside polygon |
-| `delta_b08` | Mean ΔB08 (NIR) inside polygon |
-| `bbox_width_m` | Bounding box width (metres) |
-| `bbox_height_m` | Bounding box height (metres) |
-| `compactness` | 4π·area/perimeter² (1=perfect circle, 0=very elongated) |
-=======
     magnitude_path: str,
     magnitude_profile: dict,
     spectral_delta_path: str,
@@ -372,42 +302,12 @@ def extract_features(
 ) -> pd.DataFrame
 ```
 
-**Returns:** `pd.DataFrame` with all 16 feature columns.
->>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+**Returns:** `pd.DataFrame` with all 16 feature columns:
+`id`, `area_m2`, `latitude`, `longitude`, `cva_mean`, `cva_max`, `ndvi_before`, `ndvi_after`, `delta_ndvi`, `delta_b02`, `delta_b03`, `delta_b04`, `delta_b08`, `bbox_width_m`, `bbox_height_m`, `compactness`.
 
 ---
 
-## 9. Top-Level Runners
-
-### `run_pipeline.py` — Person 1 pipeline
-
-```bash
-python run_pipeline.py [--before PATH] [--after PATH]
-```
-
-| Arg | Default | Description |
-|---|---|---|
-| `--before` | `data/sentinel/before` | BEFORE bands folder |
-| `--after` | `data/sentinel/after` | AFTER bands folder |
-
-Exit codes: `0`=success, `1`=data missing or all-cloud, `3`=unexpected error
-
-### `run_vectorize.py` — Person 2 pipeline
-
-```bash
-python run_vectorize.py [--min-area FLOAT]
-```
-
-| Arg | Default | Description |
-|---|---|---|
-| `--min-area` | `1000.0` | Minimum polygon area in m² |
-
-<<<<<<< HEAD
-Exit codes: `0`=success, `1`=Person 1 outputs missing or no polygons found
-=======
----
-
-## 11. Module: `src.models.labeller` (Person 3)
+## 9. Module: `src.models.labeller` (Person 3)
 
 ### `auto_label(df)`
 
@@ -417,18 +317,11 @@ Apply domain heuristic rules to generate provisional training labels from polygo
 def auto_label(df: pd.DataFrame) -> pd.DataFrame
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `df` | `pd.DataFrame` | Feature table (16 columns) from Person 2 |
-
-**Returns:** `pd.DataFrame` with added columns:
-- `label` (`int` 0-4)
-- `label_name` (`str` e.g., "Vegetation Clearing", "New Construction")
-- `label_source` (`str` default: `'auto_rule'`)
+**Returns:** `pd.DataFrame` with added columns: `label` (0-4), `label_name`, `label_source`.
 
 ---
 
-## 12. Module: `src.models.classifier` (Person 3)
+## 10. Module: `src.models.classifier` (Person 3)
 
 ### `load_training_data(labels_path)`
 
@@ -439,8 +332,6 @@ def load_training_data(
     labels_path: Path
 ) -> tuple[np.ndarray, np.ndarray, SimpleImputer, list[str]]
 ```
-
-**Returns:** `(X, y, imputer, feature_names)`
 
 ---
 
@@ -454,23 +345,6 @@ def train_model(
     y: np.ndarray,
     feature_names: list[str]
 ) -> tuple[RandomForestClassifier, dict]
-```
-
-**Returns:** `(clf, metrics_dict)` containing accuracy, classification report, and confusion matrix.
-
----
-
-### `save_artifacts(clf, imputer, metadata, output_dir)`
-
-Save trained model, imputer, and metadata JSON to disk.
-
-```python
-def save_artifacts(
-    clf: RandomForestClassifier,
-    imputer: SimpleImputer,
-    metadata: dict,
-    output_dir: Path
-) -> None
 ```
 
 ---
@@ -491,26 +365,9 @@ def predict_features(
 
 ---
 
-## 13. Top-Level Runner: `run_classify.py` (Person 3)
+## 11. Top-Level CLI Runners
 
-### CLI Usage
-
-```bash
-python run_classify.py [--features PATH] [--labels PATH] [--output PATH]
-```
-
-| Argument | Default | Description |
-|---|---|---|
-| `--features` | `outputs/predictions/change_features.csv` | Input features from Person 2 |
-| `--labels` | `data/labels/prototype_labels.csv` | Labelled dataset for training |
-| `--output` | `outputs/predictions/predictions.csv` | Output predictions for Person 4 |
-
-### Exit Codes
-
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | Features input missing (run `run_vectorize.py` first) |
-| 2 | Model training or inference error |
-| 3 | Unexpected error |
->>>>>>> 2b6cb418495339e11cf427b62342a836c6bf2213
+- **Person 1:** `python run_pipeline.py [--before PATH] [--after PATH]`
+- **Person 2:** `python run_vectorize.py [--min-area FLOAT]`
+- **Person 3:** `python run_classify.py [--features PATH] [--labels PATH] [--output PATH]`
+- **Person 4:** `streamlit run app/main.py`

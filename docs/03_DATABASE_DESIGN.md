@@ -1,8 +1,8 @@
-﻿# 03 — DATA DESIGN
+# 03 — DATA DESIGN
 
 > **Project:** CIPHER-X  
 > **Note:** This project has no traditional relational database. All data is file-based (raster, vector, tabular).  
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-20 (Unified 4-Person Architecture)
 
 ---
 
@@ -182,6 +182,17 @@ CIPHER-X uses a **file-based data model** instead of a database. All intermediat
 | `models/rf_imputer.joblib` | Binary (joblib) | Fitted SimpleImputer for median NaN handling |
 | `models/rf_metadata.json` | JSON | Feature names, class mapping, timestamp, sample counts |
 
+### 4.7 Integrated Dashboard Data Model (Person 4)
+
+In-memory merged GeoDataFrame joining `change_results.geojson` and `predictions.csv` on `id`:
+
+| Property | Description |
+|---|---|
+| Spatial Layer | GeoJSON polygon geometry in EPSG:4326 for Folium/Leaflet rendering |
+| Classification | `predicted_label`, `predicted_class`, `confidence` |
+| Analytics | `area_m2`, `area_ha`, `cva_mean`, `cva_max`, `delta_ndvi`, $\Delta$ spectral bands |
+| Fallback Layer | Dynamically synthesized bounding polygons if `change_results.geojson` is missing |
+
 ---
 
 ## 5. End-to-End Data Flow Summary
@@ -191,37 +202,37 @@ Raw S2 Bands (.jp2/.tif)
         │
         ▼ (Person 1)
 loader.py ──▶ align.py ──▶ masking.py ──▶ compute.py
-                                              │
+                                               │
                     ┌─────────────────────────┴────────────────────────┐
                     ▼                                                  ▼
      outputs/maps/change_magnitude.tif                  data/processed/spectral_delta.tif
                     │
                     ▼ (Person 1)
                threshold.py ──▶ outputs/maps/change_mask.tif
-                                              │
-                                              ▼ (Person 2)
-                                         polygonize.py
-                                              │
-                                              ▼
-                                 outputs/polygons/change_results.geojson
-                                              │
-                                              ▼ (Person 2)
-                                    extractor.py + ndvi.py
-                                              │
-                                              ▼
-                                 outputs/predictions/change_features.csv
-                                              │
-                                              ▼ (Person 3)
-                                 labeller.py ──▶ data/labels/prototype_labels.csv
-                                              │
-                                              ▼ (Person 3)
-                                classifier.py ──▶ models/rf_classifier.joblib
-                                              │
-                                              ▼ (Person 3)
-                               run_classify.py ──▶ outputs/predictions/predictions.csv
-                                                           │
-                                                           ▼ (Person 4)
-                                                  app/main.py (Streamlit)
+                                               │
+                                               ▼ (Person 2)
+                                          polygonize.py
+                                               │
+                                               ▼
+                                  outputs/polygons/change_results.geojson
+                                               │
+                                               ▼ (Person 2)
+                                     extractor.py + ndvi.py
+                                               │
+                                               ▼
+                                  outputs/predictions/change_features.csv
+                                               │
+                                               ▼ (Person 3)
+                                  labeller.py ──▶ data/labels/prototype_labels.csv
+                                               │
+                                               ▼ (Person 3)
+                                 classifier.py ──▶ models/rf_classifier.joblib
+                                               │
+                                               ▼ (Person 3)
+                                run_classify.py ──▶ outputs/predictions/predictions.csv
+                                                            │
+                                                            ▼ (Person 4)
+                                                   app/main.py (Streamlit)
 ```
 
 ---
@@ -241,5 +252,3 @@ Examples:
   predictions.csv               <- Person 3
   rf_classifier.joblib          <- Person 3
 ```
-
-Avoid spaces and special characters in filenames.

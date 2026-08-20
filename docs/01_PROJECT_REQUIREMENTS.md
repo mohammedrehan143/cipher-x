@@ -1,9 +1,9 @@
-﻿# 01 — PROJECT REQUIREMENTS
+# 01 — PROJECT REQUIREMENTS
 
 > **Project:** CIPHER-X  
 > **Event:** Smart India Hackathon (SIH) 2026 — Space Tech Track  
 > **Team:** 2nd-year Engineering Students (4-Person Team)  
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-20 (Updated for Person 4 Dashboard & Integration)
 
 ---
 
@@ -65,10 +65,14 @@ Detect **human-related land-use / land-cover changes** from multi-temporal satel
 - The system SHALL predict the class label and a confidence score ($0.0 - 1.0$) for each polygon.
 - Output SHALL be exported to `outputs/predictions/predictions.csv`.
 
-### FR-08 — Dashboard & GIS Visualization (Person 4)
-- The system SHALL display a Streamlit-based interactive map (`app/main.py`).
+### FR-08 — Interactive GIS Dashboard & Analytics (Person 4)
+- The system SHALL display a Streamlit-based interactive GIS dashboard (`app/main.py`).
 - The dashboard SHALL join `change_results.geojson` with `predictions.csv` on `id`.
-- The dashboard SHALL show change polygons colored by predicted class with confidence filtering.
+- The dashboard SHALL render color-coded change polygons on interactive satellite/street basemaps with popups, tooltips, and category filters.
+- The dashboard SHALL provide a Selected AOI Deep-Dive Inspector displaying area ($m^2$), coordinates, CVA magnitude, $\Delta\text{NDVI}$, class prediction, and confidence meter.
+- The dashboard SHALL provide Before vs After satellite scene comparisons alongside CVA magnitude overlays.
+- The dashboard SHALL display macro KPI metrics (total changed area, most frequent class, average confidence) and ML feature importance analytics.
+- The dashboard SHALL implement a Zero-Crash Resilience Architecture with graceful fallbacks for missing optional rasters or polygons.
 
 ---
 
@@ -82,6 +86,7 @@ Detect **human-related land-use / land-cover changes** from multi-temporal satel
 | NFR-04 | Reproducibility | Clean command execution: `run_pipeline.py` -> `run_vectorize.py` -> `run_classify.py` -> `streamlit run app/main.py` |
 | NFR-05 | Modularity & Code Quality | Functions < 60 lines with docstrings and type annotations |
 | NFR-06 | Standardized Formats | GeoTIFF, GeoJSON (EPSG:4326), CSV, joblib models |
+| NFR-07 | UI Responsiveness | Interactive map renders and updates in < 1 second |
 
 ---
 
@@ -101,4 +106,4 @@ Detect **human-related land-use / land-cover changes** from multi-temporal satel
 | Change detection is valid | `change_mask.tif` contains non-trivial change pixels |
 | Polygons generated | Valid polygons in `outputs/polygons/change_results.geojson` with 16 features |
 | ML Predictions generated | `outputs/predictions/predictions.csv` contains predicted class and confidence scores |
-| Dashboard renders | Streamlit app opens and renders interactive polygon map with statistics |
+| Dashboard renders | Streamlit app opens and renders interactive polygon map with statistics and inspection views |
